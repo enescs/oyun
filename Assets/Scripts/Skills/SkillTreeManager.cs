@@ -33,8 +33,7 @@ public class SkillTreeManager : MonoBehaviour
 
     //jeweler — kuyumcu sistemi
     private bool jewelerUnlocked = false;
-    private int jewelerCost = 0;
-    private int ownedJewelerCount = 0;
+    private List<OwnedJeweler> ownedJewelers = new List<OwnedJeweler>();
 
     //training — bilim adamı eğitim sistemi
     private bool trainingUnlocked = false;
@@ -59,7 +58,7 @@ public class SkillTreeManager : MonoBehaviour
 
     //events — jeweler
     public static event Action OnJewelerUnlocked; //kuyumcu satın alınabilir
-    public static event Action<int> OnJewelerBought; //kuyumcu satın alındı (yeni toplam sayı)
+    public static event Action<OwnedJeweler> OnJewelerBought; //kuyumcu satın alındı
 
     //events — training
     public static event Action OnTrainingUnlocked; //eğitim sistemi açıldı
@@ -684,11 +683,10 @@ public class SkillTreeManager : MonoBehaviour
     /// <summary>
     /// UnlockTrainingEffect tarafından çağrılır. Bilim adamı eğitim sistemini açar.
     /// </summary>
-    public void UnlockJeweler(int cost)
+    public void UnlockJeweler()
     {
         if (jewelerUnlocked) return;
         jewelerUnlocked = true;
-        jewelerCost = cost;
         OnJewelerUnlocked?.Invoke();
     }
 
@@ -696,15 +694,16 @@ public class SkillTreeManager : MonoBehaviour
     /// UI bu metodu çağırır. Kuyumcu satın alır.
     /// Başarılıysa true, para yetmiyorsa veya kilitliyse false döner.
     /// </summary>
-    public bool BuyJeweler()
+    public bool BuyJeweler(JewelerProduct product)
     {
         if (!jewelerUnlocked) return false;
         if (GameStatManager.Instance == null) return false;
-        if (!GameStatManager.Instance.HasEnoughWealth(jewelerCost)) return false;
+        if (!GameStatManager.Instance.HasEnoughWealth(product.cost)) return false;
 
-        GameStatManager.Instance.TrySpendWealth(jewelerCost);
-        ownedJewelerCount++;
-        OnJewelerBought?.Invoke(ownedJewelerCount);
+        GameStatManager.Instance.TrySpendWealth(product.cost);
+        OwnedJeweler jeweler = new OwnedJeweler(product);
+        ownedJewelers.Add(jeweler);
+        OnJewelerBought?.Invoke(jeweler);
         return true;
     }
 
@@ -715,12 +714,12 @@ public class SkillTreeManager : MonoBehaviour
 
     public int GetJewelerCount()
     {
-        return ownedJewelerCount;
+        return ownedJewelers.Count;
     }
 
-    public int GetJewelerCost()
+    public List<OwnedJeweler> GetOwnedJewelers()
     {
-        return jewelerCost;
+        return ownedJewelers;
     }
 
     public void UnlockTraining(float coefficient, float baseSweetSpot, float sweetSpotGrowthRate)
@@ -964,5 +963,23 @@ public class OwnedInvestment
             targetPercent = UnityEngine.Random.Range(0f, product.maxProfitPercent);
         else
             targetPercent = -UnityEngine.Random.Range(0f, product.maxLossPercent);
+    }
+}
+
+public enum JewelerLocationType
+{
+    Normal,
+    Unsafe,
+    Elite
+}
+
+[System.Serializable]
+public class OwnedJeweler
+{
+    public JewelerProduct product;
+
+    public OwnedJeweler(JewelerProduct product)
+    {
+        this.product = product;
     }
 }
