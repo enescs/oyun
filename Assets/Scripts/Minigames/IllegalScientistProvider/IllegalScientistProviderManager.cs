@@ -2,13 +2,13 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class ScientistSmuggleManager : MonoBehaviour
+public class IllegalScientistProviderManager : MonoBehaviour
 {
-    public static ScientistSmuggleManager Instance { get; private set; }
+    public static IllegalScientistProviderManager Instance { get; private set; }
 
     [Header("Referanslar")]
     public MiniGameData minigameData; //MinigameManager'dan açık mı kontrolü için
-    public ScientistSmuggleDatabase database;
+    public IllegalScientistProviderDatabase database;
 
     [Header("Teklif Ayarları")]
     public float minOfferInterval = 90f;  //minimum teklif aralığı (saniye)
@@ -25,8 +25,8 @@ public class ScientistSmuggleManager : MonoBehaviour
     public float postProcessEventInterval = 20f; //musallat event'leri arası bekleme süresi (saniye)
 
     //mevcut durum
-    private ScientistSmuggleState currentState = ScientistSmuggleState.Idle;
-    private ScientistSmuggleEvent currentOffer;
+    private IllegalScientistProviderState currentState = IllegalScientistProviderState.Idle;
+    private IllegalScientistProviderEvent currentOffer;
 
     //gönderilen bilim adamı
     private float assignedStealthLevel; //atanan bilim adamının gizlilik seviyesi (süreç boyunca saklanır)
@@ -46,31 +46,31 @@ public class ScientistSmuggleManager : MonoBehaviour
     private float postProcessEventTimer; //musallat event kontrol sayacı
 
     //event sistemi
-    private ScientistSmuggleEvent currentEvent;
-    private List<ScientistSmuggleEvent> activeEventPool;
-    private List<ScientistSmuggleEvent> triggeredEvents = new List<ScientistSmuggleEvent>();
+    private IllegalScientistProviderEvent currentEvent;
+    private List<IllegalScientistProviderEvent> activeEventPool;
+    private List<IllegalScientistProviderEvent> triggeredEvents = new List<IllegalScientistProviderEvent>();
 
     //postProcess event sistemi
-    private List<ScientistSmuggleEvent> postProcessPool;
-    private List<ScientistSmuggleEvent> triggeredPostEvents = new List<ScientistSmuggleEvent>();
+    private List<IllegalScientistProviderEvent> postProcessPool;
+    private List<IllegalScientistProviderEvent> triggeredPostEvents = new List<IllegalScientistProviderEvent>();
 
     //operasyon boyunca biriken modifier'lar
     private float accumulatedSuspicionModifier;
     private int accumulatedCostModifier;
 
     //offer tekrar sistemi
-    private HashSet<ScientistSmuggleEvent> usedOffers = new HashSet<ScientistSmuggleEvent>(); //kabul veya ret edilen offer'lar (bir daha gelmez)
+    private HashSet<IllegalScientistProviderEvent> usedOffers = new HashSet<IllegalScientistProviderEvent>(); //kabul veya ret edilen offer'lar (bir daha gelmez)
 
     //events — UI bu event'leri dinleyecek
-    public static event Action<ScientistSmuggleEvent> OnOfferReceived;              //teklif geldi
+    public static event Action<IllegalScientistProviderEvent> OnOfferReceived;              //teklif geldi
     public static event Action<float> OnOfferDecisionTimerUpdate;                   //teklif karar sayacı
-    public static event Action<ScientistSmuggleEvent, float> OnProcessStarted;      //süreç başladı (offer, süre)
+    public static event Action<IllegalScientistProviderEvent, float> OnProcessStarted;      //süreç başladı (offer, süre)
     public static event Action<float> OnProcessProgress;                            //ilerleme (0-1)
-    public static event Action<ScientistSmuggleEvent> OnSmuggleEventTriggered;      //event tetiklendi (process veya postProcess)
+    public static event Action<IllegalScientistProviderEvent> OnSmuggleEventTriggered;      //event tetiklendi (process veya postProcess)
     public static event Action<float> OnEventDecisionTimerUpdate;                   //event karar sayacı
-    public static event Action<ScientistSmuggleEventChoice> OnSmuggleEventResolved; //seçim yapıldı
+    public static event Action<IllegalScientistProviderEventChoice> OnSmuggleEventResolved; //seçim yapıldı
     public static event Action<string> OnMinigameFailed;                            //operasyon deşifre oldu (sebep)
-    public static event Action<ScientistSmuggleResult> OnProcessCompleted;          //operasyon bitti (sonuç)
+    public static event Action<IllegalScientistProviderResult> OnProcessCompleted;          //operasyon bitti (sonuç)
     public static event Action OnPostProcessStarted;                                //musallat süreci başladı
     public static event Action OnPostProcessEnded;                                  //musallat süreci bitti, idle'a dönüldü
     public static event Action<List<ScientistData>> OnScientistsKilled;            //bilim adamları öldürüldü (listeden çıkarılanlar)
@@ -90,22 +90,22 @@ public class ScientistSmuggleManager : MonoBehaviour
     {
         switch (currentState)
         {
-            case ScientistSmuggleState.Idle:
+            case IllegalScientistProviderState.Idle:
                 UpdateIdle();
                 break;
-            case ScientistSmuggleState.OfferPending:
+            case IllegalScientistProviderState.OfferPending:
                 UpdateOfferPending();
                 break;
-            case ScientistSmuggleState.ActiveProcess:
+            case IllegalScientistProviderState.ActiveProcess:
                 UpdateActiveProcess();
                 break;
-            case ScientistSmuggleState.EventPhase:
+            case IllegalScientistProviderState.EventPhase:
                 UpdateEventPhase();
                 break;
-            case ScientistSmuggleState.PostProcess:
+            case IllegalScientistProviderState.PostProcess:
                 UpdatePostProcess();
                 break;
-            case ScientistSmuggleState.PostEventPhase:
+            case IllegalScientistProviderState.PostEventPhase:
                 UpdatePostEventPhase();
                 break;
         }
@@ -176,7 +176,7 @@ public class ScientistSmuggleManager : MonoBehaviour
             eventCheckTimer = 0f;
             TryTriggerProcessEvent();
 
-            if (currentState != ScientistSmuggleState.ActiveProcess) return;
+            if (currentState != IllegalScientistProviderState.ActiveProcess) return;
         }
 
         //süreç bitti — başarı
@@ -266,10 +266,10 @@ public class ScientistSmuggleManager : MonoBehaviour
         if (!EventCoordinator.CanShowEvent()) return;
 
         //uygun offer'ları filtrele (kullanılmış offer'lar bir daha gelmez)
-        List<ScientistSmuggleEvent> available = new List<ScientistSmuggleEvent>();
+        List<IllegalScientistProviderEvent> available = new List<IllegalScientistProviderEvent>();
         for (int i = 0; i < database.offerEvents.Count; i++)
         {
-            ScientistSmuggleEvent offer = database.offerEvents[i];
+            IllegalScientistProviderEvent offer = database.offerEvents[i];
             if (usedOffers.Contains(offer)) continue;
             available.Add(offer);
         }
@@ -282,7 +282,7 @@ public class ScientistSmuggleManager : MonoBehaviour
 
         EventCoordinator.MarkEventShown();
 
-        currentState = ScientistSmuggleState.OfferPending;
+        currentState = IllegalScientistProviderState.OfferPending;
         offerDecisionTimer = offerDecisionTime;
 
         //oyunu duraklat — offer karar ekranında zaman durmalı
@@ -298,7 +298,7 @@ public class ScientistSmuggleManager : MonoBehaviour
     /// </summary>
     public void AcceptOffer(int scientistIndex)
     {
-        if (currentState != ScientistSmuggleState.OfferPending || currentOffer == null) return;
+        if (currentState != IllegalScientistProviderState.OfferPending || currentOffer == null) return;
         if (SkillTreeManager.Instance == null) return;
 
         //bilim adamı geçerli ve eğitimi tamamlanmış mı kontrol et
@@ -326,7 +326,7 @@ public class ScientistSmuggleManager : MonoBehaviour
     /// </summary>
     public void RejectOffer()
     {
-        if (currentState != ScientistSmuggleState.OfferPending) return;
+        if (currentState != IllegalScientistProviderState.OfferPending) return;
 
         //oyunu devam ettir
         if (GameManager.Instance != null)
@@ -337,7 +337,7 @@ public class ScientistSmuggleManager : MonoBehaviour
             usedOffers.Add(currentOffer);
 
         currentOffer = null;
-        currentState = ScientistSmuggleState.Idle;
+        currentState = IllegalScientistProviderState.Idle;
         nextOfferTime = UnityEngine.Random.Range(minOfferInterval, maxOfferInterval);
         offerTimer = 0f;
     }
@@ -349,7 +349,7 @@ public class ScientistSmuggleManager : MonoBehaviour
     /// </summary>
     private void StartActiveProcess()
     {
-        currentState = ScientistSmuggleState.ActiveProcess;
+        currentState = IllegalScientistProviderState.ActiveProcess;
 
         effectiveRiskLevel = currentOffer.riskLevel;
         accumulatedRiskModifier = 0f;
@@ -377,7 +377,7 @@ public class ScientistSmuggleManager : MonoBehaviour
         if (activeEventPool == null || activeEventPool.Count == 0) return;
 
         //daha önce tetiklenmemiş eventleri filtrele
-        List<ScientistSmuggleEvent> available = new List<ScientistSmuggleEvent>();
+        List<IllegalScientistProviderEvent> available = new List<IllegalScientistProviderEvent>();
         for (int i = 0; i < activeEventPool.Count; i++)
         {
             if (!triggeredEvents.Contains(activeEventPool[i]))
@@ -397,7 +397,7 @@ public class ScientistSmuggleManager : MonoBehaviour
         EventCoordinator.MarkEventShown();
 
         //event fazına geç
-        currentState = ScientistSmuggleState.EventPhase;
+        currentState = IllegalScientistProviderState.EventPhase;
         eventDecisionTimer = currentEvent.decisionTime;
 
         //oyunu duraklat — event karar ekranında zaman durmalı
@@ -412,10 +412,10 @@ public class ScientistSmuggleManager : MonoBehaviour
     /// </summary>
     public void ResolveEvent(int choiceIndex)
     {
-        if (currentState != ScientistSmuggleState.EventPhase || currentEvent == null) return;
+        if (currentState != IllegalScientistProviderState.EventPhase || currentEvent == null) return;
         if (choiceIndex < 0 || choiceIndex >= currentEvent.choices.Count) return;
 
-        ScientistSmuggleEventChoice choice = currentEvent.choices[choiceIndex];
+        IllegalScientistProviderEventChoice choice = currentEvent.choices[choiceIndex];
 
         //modifier'ları biriktir
         accumulatedRiskModifier += choice.riskModifier;
@@ -430,7 +430,7 @@ public class ScientistSmuggleManager : MonoBehaviour
         if (GameManager.Instance != null)
             GameManager.Instance.ResumeGame();
 
-        currentState = ScientistSmuggleState.ActiveProcess;
+        currentState = IllegalScientistProviderState.ActiveProcess;
     }
 
     // ==================== SONUÇ SİSTEMİ ====================
@@ -440,7 +440,7 @@ public class ScientistSmuggleManager : MonoBehaviour
     /// </summary>
     private void CompleteProcess()
     {
-        ScientistSmuggleResult result = new ScientistSmuggleResult();
+        IllegalScientistProviderResult result = new IllegalScientistProviderResult();
         result.success = true;
         result.offer = currentOffer;
         result.wealthChange = currentOffer.baseReward - accumulatedCostModifier;
@@ -460,7 +460,7 @@ public class ScientistSmuggleManager : MonoBehaviour
     /// </summary>
     private void FailProcess(string reason)
     {
-        ScientistSmuggleResult result = new ScientistSmuggleResult();
+        IllegalScientistProviderResult result = new IllegalScientistProviderResult();
         result.success = false;
         result.offer = currentOffer;
         result.wealthChange = -accumulatedCostModifier;
@@ -478,7 +478,7 @@ public class ScientistSmuggleManager : MonoBehaviour
     /// <summary>
     /// Sonuç stat'larını uygular.
     /// </summary>
-    private void ApplyResult(ScientistSmuggleResult result)
+    private void ApplyResult(IllegalScientistProviderResult result)
     {
         if (GameStatManager.Instance != null)
         {
@@ -498,8 +498,8 @@ public class ScientistSmuggleManager : MonoBehaviour
     private void StartPostProcess()
     {
         postProcessPool = (database.postProcessEvents != null)
-            ? new List<ScientistSmuggleEvent>(database.postProcessEvents)
-            : new List<ScientistSmuggleEvent>();
+            ? new List<IllegalScientistProviderEvent>(database.postProcessEvents)
+            : new List<IllegalScientistProviderEvent>();
 
         triggeredPostEvents.Clear();
         postProcessEventTimer = 0f;
@@ -512,7 +512,7 @@ public class ScientistSmuggleManager : MonoBehaviour
             return;
         }
 
-        currentState = ScientistSmuggleState.PostProcess;
+        currentState = IllegalScientistProviderState.PostProcess;
         OnPostProcessStarted?.Invoke();
     }
 
@@ -523,7 +523,7 @@ public class ScientistSmuggleManager : MonoBehaviour
     private void TryTriggerPostProcessEvent()
     {
         //tetiklenmemiş event'leri filtrele
-        List<ScientistSmuggleEvent> available = new List<ScientistSmuggleEvent>();
+        List<IllegalScientistProviderEvent> available = new List<IllegalScientistProviderEvent>();
         for (int i = 0; i < postProcessPool.Count; i++)
         {
             if (!triggeredPostEvents.Contains(postProcessPool[i]))
@@ -550,7 +550,7 @@ public class ScientistSmuggleManager : MonoBehaviour
         //musallat etki tipi — event tetiklendiğinde hemen gerçekleşir
         ApplyPostProcessEffect(currentEvent);
 
-        currentState = ScientistSmuggleState.PostEventPhase;
+        currentState = IllegalScientistProviderState.PostEventPhase;
         eventDecisionTimer = currentEvent.decisionTime;
 
         //oyunu duraklat — event karar ekranında zaman durmalı
@@ -565,10 +565,10 @@ public class ScientistSmuggleManager : MonoBehaviour
     /// </summary>
     public void ResolvePostEvent(int choiceIndex)
     {
-        if (currentState != ScientistSmuggleState.PostEventPhase || currentEvent == null) return;
+        if (currentState != IllegalScientistProviderState.PostEventPhase || currentEvent == null) return;
         if (choiceIndex < 0 || choiceIndex >= currentEvent.choices.Count) return;
 
-        ScientistSmuggleEventChoice choice = currentEvent.choices[choiceIndex];
+        IllegalScientistProviderEventChoice choice = currentEvent.choices[choiceIndex];
 
         //stat'ları hemen uygula (postProcess'te biriktirmek yerine anında etki)
         if (GameStatManager.Instance != null)
@@ -587,7 +587,7 @@ public class ScientistSmuggleManager : MonoBehaviour
         if (GameManager.Instance != null)
             GameManager.Instance.ResumeGame();
 
-        currentState = ScientistSmuggleState.PostProcess;
+        currentState = IllegalScientistProviderState.PostProcess;
     }
 
     /// <summary>
@@ -599,7 +599,7 @@ public class ScientistSmuggleManager : MonoBehaviour
         currentOffer = null;
         assignedStealthLevel = 0f;
         accumulatedRiskModifier = 0f;
-        currentState = ScientistSmuggleState.Idle;
+        currentState = IllegalScientistProviderState.Idle;
         nextOfferTime = UnityEngine.Random.Range(minOfferInterval, maxOfferInterval);
         offerTimer = 0f;
 
@@ -612,7 +612,7 @@ public class ScientistSmuggleManager : MonoBehaviour
     /// PostProcess event'inin etki tipine göre ilgili işlemi uygular.
     /// Yeni etki tipleri buraya eklenir.
     /// </summary>
-    private void ApplyPostProcessEffect(ScientistSmuggleEvent evt)
+    private void ApplyPostProcessEffect(IllegalScientistProviderEvent evt)
     {
         switch (evt.postProcessEffect)
         {
@@ -657,17 +657,17 @@ public class ScientistSmuggleManager : MonoBehaviour
 
     public bool IsActive()
     {
-        return currentState != ScientistSmuggleState.Idle;
+        return currentState != IllegalScientistProviderState.Idle;
     }
 
-    public ScientistSmuggleState GetCurrentState()
+    public IllegalScientistProviderState GetCurrentState()
     {
         return currentState;
     }
 
     public float GetProcessProgress()
     {
-        if (currentState != ScientistSmuggleState.ActiveProcess && currentState != ScientistSmuggleState.EventPhase)
+        if (currentState != IllegalScientistProviderState.ActiveProcess && currentState != IllegalScientistProviderState.EventPhase)
             return 0f;
         return Mathf.Clamp01(processTimer / processDuration);
     }
@@ -682,9 +682,9 @@ public class ScientistSmuggleManager : MonoBehaviour
 }
 
 /// <summary>
-/// ScientistSmuggle minigame durumları
+/// IllegalScientistProvider minigame durumları
 /// </summary>
-public enum ScientistSmuggleState
+public enum IllegalScientistProviderState
 {
     Idle,              //teklif bekleniyor
     OfferPending,      //teklif geldi, karar bekleniyor
@@ -698,10 +698,10 @@ public enum ScientistSmuggleState
 /// Süreç sonucu
 /// </summary>
 [System.Serializable]
-public class ScientistSmuggleResult
+public class IllegalScientistProviderResult
 {
     public bool success;
-    public ScientistSmuggleEvent offer;
+    public IllegalScientistProviderEvent offer;
     public float wealthChange;
     public float suspicionChange;
 }

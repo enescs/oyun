@@ -1,4 +1,4 @@
-# ScientistSmuggle Minigame
+# IllegalScientistProvider Minigame
 
 Ülkelere kaçak nükleer bilim adamı sağlama minigame'i. Oyuncuya belirli aralıklarla ülke teklifleri gelir, oyuncu eğitimli bilim adamlarından birini göndererek operasyonu başlatır. Operasyon süresince risk tabanlı rastgele deşifre olma tehlikesi vardır. Operasyon sonrası musallat eventleri oyuncuyu rahatsız eder.
 
@@ -8,12 +8,12 @@
 
 ```
 Assets/
-├── Scripts/Minigames/ScientistSmuggle/
-│   ├── ScientistSmuggleEvent.cs       ← Event ScriptableObject (teklif, süreç, musallat)
-│   ├── ScientistSmuggleDatabase.cs    ← Event havuzlarını tutan veritabanı
-│   └── ScientistSmuggleManager.cs     ← Ana yönetici (MonoBehaviour Singleton)
+├── Scripts/Minigames/IllegalScientistProvider/
+│   ├── IllegalScientistProviderEvent.cs       ← Event ScriptableObject (teklif, süreç, musallat)
+│   ├── IllegalScientistProviderDatabase.cs    ← Event havuzlarını tutan veritabanı
+│   └── IllegalScientistProviderManager.cs     ← Ana yönetici (MonoBehaviour Singleton)
 ├── Editor/
-│   └── ScientistSmuggleEventEditor.cs ← Event Inspector'ı (tipe göre alan gösterimi)
+│   └── IllegalScientistProviderEventEditor.cs ← Event Inspector'ı (tipe göre alan gösterimi)
 ```
 
 ---
@@ -40,7 +40,7 @@ Idle ──→ OfferPending ──→ ActiveProcess ←──→ EventPhase
 
 ---
 
-## ScientistSmuggleEvent (ScriptableObject)
+## IllegalScientistProviderEvent (ScriptableObject)
 
 Tek ScriptableObject, `eventType` enum'una göre farklı rollerde kullanılır. Inspector'da Custom Editor sayesinde sadece ilgili alanlar görünür.
 
@@ -54,7 +54,7 @@ Tek ScriptableObject, `eventType` enum'una göre farklı rollerde kullanılır. 
 | `description` | string (TextArea) | Ülkenin durumu, kriz açıklaması |
 | `baseReward` | int | Başarılı operasyon sonrası taban kazanç |
 | `riskLevel` | float [0-1] | Ülkenin risk seviyesi (0 = güvenli, 1 = çok riskli) |
-| `processEvents` | List\<ScientistSmuggleEvent\> | Bu offer'a özel süreç eventleri (boşsa database'den alınır) |
+| `processEvents` | List\<IllegalScientistProviderEvent\> | Bu offer'a özel süreç eventleri (boşsa database'den alınır) |
 | `decisionTime` | float | Oyuncunun karar süresi (saniye) |
 
 **Process** — Süreç sırasında tetiklenen event
@@ -64,7 +64,7 @@ Tek ScriptableObject, `eventType` enum'una göre farklı rollerde kullanılır. 
 | `displayName` | string | Event başlığı |
 | `description` | string (TextArea) | Event açıklaması |
 | `decisionTime` | float | Karar süresi (saniye) |
-| `choices` | List\<ScientistSmuggleEventChoice\> | Oyuncunun seçenekleri |
+| `choices` | List\<IllegalScientistProviderEventChoice\> | Oyuncunun seçenekleri |
 | `defaultChoiceIndex` | int | Süre dolunca otomatik seçilecek seçenek (-1 = ilk) |
 
 **PostProcess** — Operasyon sonrası musallat event
@@ -76,10 +76,10 @@ Tek ScriptableObject, `eventType` enum'una göre farklı rollerde kullanılır. 
 | `postProcessEffect` | PostProcessEffectType | Musallat etki tipi |
 | ↳ ScientistKill: `scientistKillCount` | int | Öldürülecek bilim adamı sayısı |
 | `decisionTime` | float | Karar süresi (saniye) |
-| `choices` | List\<ScientistSmuggleEventChoice\> | Oyuncunun seçenekleri |
+| `choices` | List\<IllegalScientistProviderEventChoice\> | Oyuncunun seçenekleri |
 | `defaultChoiceIndex` | int | Süre dolunca otomatik seçilecek seçenek (-1 = ilk) |
 
-### ScientistSmuggleEventChoice
+### IllegalScientistProviderEventChoice
 
 | Alan | Tip | Açıklama |
 |------|-----|----------|
@@ -98,25 +98,25 @@ Tek ScriptableObject, `eventType` enum'una göre farklı rollerde kullanılır. 
 
 Yeni musallat etki tipleri eklemek için:
 1. `PostProcessEffectType` enum'una yeni değer ekle
-2. `ScientistSmuggleEvent`'e ilgili alanları ekle
-3. `ScientistSmuggleEventEditor`'da yeni tipin alanlarını göster
-4. `ScientistSmuggleManager.ApplyPostProcessEffect()` switch'ine yeni case ekle
+2. `IllegalScientistProviderEvent`'e ilgili alanları ekle
+3. `IllegalScientistProviderEventEditor`'da yeni tipin alanlarını göster
+4. `IllegalScientistProviderManager.ApplyPostProcessEffect()` switch'ine yeni case ekle
 
 ---
 
-## ScientistSmuggleDatabase (ScriptableObject)
+## IllegalScientistProviderDatabase (ScriptableObject)
 
 Event havuzlarını tutar. Inspector'dan doldurulur.
 
 | Alan | Tip | Açıklama |
 |------|-----|----------|
-| `offerEvents` | List\<ScientistSmuggleEvent\> | Teklif eventleri (eventType = Offer) |
-| `processEvents` | List\<ScientistSmuggleEvent\> | Genel süreç eventleri (eventType = Process) |
-| `postProcessEvents` | List\<ScientistSmuggleEvent\> | Musallat eventleri (eventType = PostProcess) |
+| `offerEvents` | List\<IllegalScientistProviderEvent\> | Teklif eventleri (eventType = Offer) |
+| `processEvents` | List\<IllegalScientistProviderEvent\> | Genel süreç eventleri (eventType = Process) |
+| `postProcessEvents` | List\<IllegalScientistProviderEvent\> | Musallat eventleri (eventType = PostProcess) |
 
 ---
 
-## ScientistSmuggleManager (MonoBehaviour Singleton)
+## IllegalScientistProviderManager (MonoBehaviour Singleton)
 
 Ana yönetici. Sahneye eklenir, Inspector'dan ayarlanır.
 
@@ -193,15 +193,15 @@ UI bu static event'leri dinleyerek ekranı günceller:
 
 | Event | Parametre | Ne zaman tetiklenir |
 |-------|-----------|---------------------|
-| `OnOfferReceived` | `ScientistSmuggleEvent` | Teklif geldi |
+| `OnOfferReceived` | `IllegalScientistProviderEvent` | Teklif geldi |
 | `OnOfferDecisionTimerUpdate` | `float` | Teklif karar sayacı güncellendi |
-| `OnProcessStarted` | `ScientistSmuggleEvent, float` | Süreç başladı (offer, süre) |
+| `OnProcessStarted` | `IllegalScientistProviderEvent, float` | Süreç başladı (offer, süre) |
 | `OnProcessProgress` | `float` | Süreç ilerlemesi (0-1) |
-| `OnSmuggleEventTriggered` | `ScientistSmuggleEvent` | Event tetiklendi (process veya postProcess) |
+| `OnSmuggleEventTriggered` | `IllegalScientistProviderEvent` | Event tetiklendi (process veya postProcess) |
 | `OnEventDecisionTimerUpdate` | `float` | Event karar sayacı güncellendi |
-| `OnSmuggleEventResolved` | `ScientistSmuggleEventChoice` | Oyuncu seçim yaptı |
+| `OnSmuggleEventResolved` | `IllegalScientistProviderEventChoice` | Oyuncu seçim yaptı |
 | `OnMinigameFailed` | `string` | Operasyon deşifre oldu (sebep) |
-| `OnProcessCompleted` | `ScientistSmuggleResult` | Operasyon başarıyla bitti |
+| `OnProcessCompleted` | `IllegalScientistProviderResult` | Operasyon başarıyla bitti |
 | `OnPostProcessStarted` | — | Musallat süreci başladı |
 | `OnPostProcessEnded` | — | Musallat süreci bitti |
 | `OnScientistsKilled` | `List<ScientistData>` | Bilim adamları öldürüldü |
@@ -220,7 +220,7 @@ UI bu static event'leri dinleyerek ekranı günceller:
 | Metod | Dönüş | Açıklama |
 |-------|-------|----------|
 | `IsActive()` | bool | Minigame aktif mi (Idle değilse true) |
-| `GetCurrentState()` | ScientistSmuggleState | Mevcut durum |
+| `GetCurrentState()` | IllegalScientistProviderState | Mevcut durum |
 | `GetProcessProgress()` | float | Süreç ilerlemesi (0-1) |
 | `GetEffectiveRisk()` | float | Efektif risk seviyesi (0-1) |
 
@@ -241,5 +241,5 @@ UI bu static event'leri dinleyerek ekranı günceller:
 ## Asset Oluşturma
 
 Unity menüsünden:
-- **Assets > Create > Minigames > ScientistSmuggle > Event** — yeni event oluştur
-- **Assets > Create > Minigames > ScientistSmuggle > Database** — yeni veritabanı oluştur
+- **Assets > Create > Minigames > IllegalScientistProvider > Event** — yeni event oluştur
+- **Assets > Create > Minigames > IllegalScientistProvider > Database** — yeni veritabanı oluştur

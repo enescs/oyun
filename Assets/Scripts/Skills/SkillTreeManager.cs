@@ -31,6 +31,11 @@ public class SkillTreeManager : MonoBehaviour
     private Dictionary<InvestmentProduct, float> investmentPhaseEndTime = new Dictionary<InvestmentProduct, float>(); //mevcut fazın bitiş zamanı
     private Dictionary<InvestmentProduct, float> effectiveProfitChance = new Dictionary<InvestmentProduct, float>(); //streak breaker ile değişen kâr olasılığı
 
+    //jeweler — kuyumcu sistemi
+    private bool jewelerUnlocked = false;
+    private int jewelerCost = 0;
+    private int ownedJewelerCount = 0;
+
     //training — bilim adamı eğitim sistemi
     private bool trainingUnlocked = false;
     private List<ScientistTraining> scientists = new List<ScientistTraining>();
@@ -51,6 +56,10 @@ public class SkillTreeManager : MonoBehaviour
     public static event Action<int, float> OnInvestmentValueChanged; //yatırım index'i, yeni değer
     public static event Action<InvestmentProduct, float> OnMarketPriceChanged; //product, yeni piyasa fiyatı
     public static event Action<InvestmentProduct, bool> OnInvestmentAvailabilityChanged; //product, available?
+
+    //events — jeweler
+    public static event Action OnJewelerUnlocked; //kuyumcu satın alınabilir
+    public static event Action<int> OnJewelerBought; //kuyumcu satın alındı (yeni toplam sayı)
 
     //events — training
     public static event Action OnTrainingUnlocked; //eğitim sistemi açıldı
@@ -675,6 +684,45 @@ public class SkillTreeManager : MonoBehaviour
     /// <summary>
     /// UnlockTrainingEffect tarafından çağrılır. Bilim adamı eğitim sistemini açar.
     /// </summary>
+    public void UnlockJeweler(int cost)
+    {
+        if (jewelerUnlocked) return;
+        jewelerUnlocked = true;
+        jewelerCost = cost;
+        OnJewelerUnlocked?.Invoke();
+    }
+
+    /// <summary>
+    /// UI bu metodu çağırır. Kuyumcu satın alır.
+    /// Başarılıysa true, para yetmiyorsa veya kilitliyse false döner.
+    /// </summary>
+    public bool BuyJeweler()
+    {
+        if (!jewelerUnlocked) return false;
+        if (GameStatManager.Instance == null) return false;
+        if (!GameStatManager.Instance.HasEnoughWealth(jewelerCost)) return false;
+
+        GameStatManager.Instance.TrySpendWealth(jewelerCost);
+        ownedJewelerCount++;
+        OnJewelerBought?.Invoke(ownedJewelerCount);
+        return true;
+    }
+
+    public bool IsJewelerUnlocked()
+    {
+        return jewelerUnlocked;
+    }
+
+    public int GetJewelerCount()
+    {
+        return ownedJewelerCount;
+    }
+
+    public int GetJewelerCost()
+    {
+        return jewelerCost;
+    }
+
     public void UnlockTraining(float coefficient, float baseSweetSpot, float sweetSpotGrowthRate)
     {
         if (trainingUnlocked) return;

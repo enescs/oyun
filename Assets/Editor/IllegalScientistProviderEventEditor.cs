@@ -1,8 +1,8 @@
 using UnityEditor;
 using UnityEngine;
 
-[CustomEditor(typeof(ScientistSmuggleEvent))]
-public class ScientistSmuggleEventEditor : Editor
+[CustomEditor(typeof(IllegalScientistProviderEvent))]
+public class IllegalScientistProviderEventEditor : Editor
 {
     public override void OnInspectorGUI()
     {
@@ -16,13 +16,13 @@ public class ScientistSmuggleEventEditor : Editor
         EditorGUILayout.Space();
         EditorGUILayout.PropertyField(serializedObject.FindProperty("eventType"));
 
-        ScientistSmuggleEventType eventType = (ScientistSmuggleEventType)serializedObject.FindProperty("eventType").enumValueIndex;
+        IllegalScientistProviderEventType eventType = (IllegalScientistProviderEventType)serializedObject.FindProperty("eventType").enumValueIndex;
 
         EditorGUILayout.Space();
 
         switch (eventType)
         {
-            case ScientistSmuggleEventType.Offer:
+            case IllegalScientistProviderEventType.Offer:
                 EditorGUILayout.LabelField("Teklif Ayarları", EditorStyles.boldLabel);
                 EditorGUILayout.PropertyField(serializedObject.FindProperty("baseReward"));
                 EditorGUILayout.PropertyField(serializedObject.FindProperty("riskLevel"));
@@ -31,14 +31,14 @@ public class ScientistSmuggleEventEditor : Editor
                 EditorGUILayout.PropertyField(serializedObject.FindProperty("processEvents"), true);
                 break;
 
-            case ScientistSmuggleEventType.Process:
+            case IllegalScientistProviderEventType.Process:
                 EditorGUILayout.LabelField("Süreç Event Ayarları", EditorStyles.boldLabel);
                 EditorGUILayout.PropertyField(serializedObject.FindProperty("decisionTime"));
                 EditorGUILayout.PropertyField(serializedObject.FindProperty("choices"), true);
                 EditorGUILayout.PropertyField(serializedObject.FindProperty("defaultChoiceIndex"));
                 break;
 
-            case ScientistSmuggleEventType.PostProcess:
+            case IllegalScientistProviderEventType.PostProcess:
                 EditorGUILayout.LabelField("Musallat Event Ayarları", EditorStyles.boldLabel);
                 EditorGUILayout.PropertyField(serializedObject.FindProperty("decisionTime"));
                 EditorGUILayout.Space();
