@@ -51,6 +51,15 @@ public class WarForOilManager : MonoBehaviour
     private float cornerGrabStat; //köşe kapma stat'ı (0-100, yüksek = bizim lehimize)
     private Dictionary<WarForOilCountry, float> bonusRewards = new Dictionary<WarForOilCountry, float>(); //rakip işgallerden ülkelere eklenen bonus ödül
 
+    //toplum tepkisi sistemi
+    private bool protestPending; //foreshadow aşaması (feed değişti, event henüz gösterilmedi)
+    private bool protestActive; //toplum tepkisi aktif mi
+    private bool protestTriggered; //bu savaşta toplum tepkisi zaten tetiklendi mi (tekrar tetiklenmez)
+    private bool protestSuppressed; //başarıyla bastırıldı mı
+    private float protestStat; //toplum tepkisi değeri (0-100)
+    private float protestDriftRate; //pasif drift hızı (son choice modifier / divisor, her tick'te uygulanır)
+    private float protestDriftTimer; //drift tick zamanlayıcı
+
     //sonuç ekranı beklerken saklanan sonuç
     private WarForOilResult pendingResult;
 
@@ -84,6 +93,10 @@ public class WarForOilManager : MonoBehaviour
     public static event Action<WarForOilCountry> OnRivalInvasionStarted; //rakip işgal tetiklendi (UI rakip ülkeyi gösterebilir)
     public static event Action OnCornerGrabStarted; //köşe kapma yarışı başladı (anlaşma reddedildi)
     public static event Action<float> OnCornerGrabStatChanged; //köşe kapma stat'ı değişti (0-100)
+    public static event Action OnProtestForeshadow; //feed savaş karşıtı gönderilere döndü (foreshadowing)
+    public static event Action OnProtestStarted; //toplum tepkisi başladı
+    public static event Action<float> OnProtestStatChanged; //toplum tepkisi stat'ı değişti (0-100)
+    public static event Action OnProtestSuppressed; //toplum tepkisi başarıyla bastırıldı
 
     void Start()
     {
@@ -236,6 +249,28 @@ public class WarForOilManager : MonoBehaviour
         {
             cornerGrabStat = Mathf.Clamp(cornerGrabStat + choice.cornerGrabModifier, 0f, 100f);
             OnCornerGrabStatChanged?.Invoke(cornerGrabStat);
+        }
+
+        //toplum tepkisi stat güncelle (sadece tepki aktifse)
+        if (protestActive && !protestSuppressed && choice.protestModifier != 0f)
+        {
+            protestStat = Mathf.Clamp(protestStat + choice.protestModifier, 0f, 100f);
+            protestDriftRate = choice.protestModifier / database.protestDriftDivisor;
+            protestDriftTimer = 0f; //drift timer'ı sıfırla (yeni choice'tan itibaren say)
+            OnProtestStatChanged?.Invoke(protestStat);
+
+            //anında eşik kontrolleri
+            if (protestStat >= database.protestFailThreshold)
+            {
+                if (GameManager.Instance != null)
+                    GameManager.Instance.ResumeGame();
+                ProtestForceCeasefire();
+                return;
+            }
+            if (protestStat < database.protestSuccessThreshold)
+            {
+                SuppressProtest();
+            }
         }
 
         WarForOilEvent resolvedEvent = currentEvent;
@@ -555,6 +590,31 @@ public class WarForOilManager : MonoBehaviour
         //UI'a ilerleme bildir
         float progress = Mathf.Clamp01(warTimer / database.warDuration);
         OnWarProgress?.Invoke(progress);
+
+        //toplum tepkisi drift güncelleme
+        if (protestActive && !protestSuppressed)
+        {
+            protestDriftTimer += Time.deltaTime;
+            if (protestDriftTimer >= database.protestDriftInterval)
+            {
+                protestDriftTimer = 0f;
+                protestStat = Mathf.Clamp(protestStat + protestDriftRate, 0f, 100f);
+                OnProtestStatChanged?.Invoke(protestStat);
+
+                //eşik kontrolleri
+                if (protestStat >= database.protestFailThreshold)
+                {
+                    //toplum tepkisi çok yükseldi — otomatik ateşkes
+                    ProtestForceCeasefire();
+                    return;
+                }
+                if (protestStat < database.protestSuccessThreshold)
+                {
+                    //toplum tepkisi bastırıldı
+                    SuppressProtest();
+                }
+            }
+        }
 
         //event kontrol
         eventCheckTimer += Time.deltaTime;
@@ -890,6 +950,105 @@ public class WarForOilManager : MonoBehaviour
         return rivalCountry;
     }
 
+    // ==================== TOPLUM TEPKİSİ SİSTEMİ ====================
+
+    /// <summary>
+    /// Toplum tepkisini aktif eder ve başlangıç event'ini gösterir (faz 2).
+    /// </summary>
+    private void ActivateProtest()
+    {
+        protestActive = true;
+        protestStat = database.initialProtestStat;
+        protestDriftRate = 0f; //ilk choice'a kadar drift yok
+        protestDriftTimer = 0f;
+
+        OnProtestStarted?.Invoke();
+        OnProtestStatChanged?.Invoke(protestStat);
+
+        //başlangıç event'ini göster
+        if (!EventCoordinator.CanShowEvent()) return;
+
+        EventCoordinator.MarkEventShown();
+
+        currentEvent = database.protestTriggerEvent;
+        currentState = WarForOilState.EventPhase;
+        eventDecisionTimer = currentEvent.decisionTime;
+
+        if (GameManager.Instance != null)
+            GameManager.Instance.PauseGame();
+
+        OnWarEventTriggered?.Invoke(currentEvent);
+    }
+
+    /// <summary>
+    /// Toplum tepkisi eşiği aşıldı — savaş otomatik ateşkese bağlanır.
+    /// </summary>
+    private void ProtestForceCeasefire()
+    {
+        protestActive = false;
+
+        //mevcut ateşkes formülü ile sonuç hesapla
+        float ratio = (supportStat - database.ceasefireMinSupport)
+            / (100f - database.ceasefireMinSupport);
+        ratio = Mathf.Clamp01(ratio); //support < minSupport olabilir, negatife düşmesin
+
+        float effectiveReward = GetEffectiveBaseReward(selectedCountry);
+
+        float wealthChange = Mathf.Lerp(
+            -database.ceasefirePenalty,
+            effectiveReward * rewardMultiplier * database.ceasefireMaxReward,
+            ratio
+        ) - accumulatedCostModifier;
+
+        pendingResult = new WarForOilResult();
+        pendingResult.country = selectedCountry;
+        pendingResult.warWon = false;
+        pendingResult.wasCeasefire = true;
+        pendingResult.wasProtestCeasefire = true;
+        pendingResult.finalSupportStat = supportStat;
+        pendingResult.finalProtestStat = protestStat;
+        pendingResult.winChance = 0f;
+        pendingResult.wealthChange = wealthChange;
+        pendingResult.suspicionChange = accumulatedSuspicionModifier;
+        pendingResult.politicalInfluenceChange = accumulatedPoliticalInfluenceModifier;
+
+        currentState = WarForOilState.ResultPhase;
+
+        if (GameManager.Instance != null)
+            GameManager.Instance.PauseGame();
+
+        OnCeasefireResult?.Invoke(pendingResult);
+    }
+
+    /// <summary>
+    /// Toplum tepkisi başarıyla bastırıldı (stat eşiğin altına düştü).
+    /// Protest eventleri durur, normal savaş devam eder.
+    /// </summary>
+    private void SuppressProtest()
+    {
+        protestSuppressed = true;
+        protestActive = false;
+        protestDriftRate = 0f;
+
+        OnProtestSuppressed?.Invoke();
+    }
+
+    /// <summary>
+    /// Toplum tepkisi aktif mi.
+    /// </summary>
+    public bool IsProtestActive()
+    {
+        return protestActive;
+    }
+
+    /// <summary>
+    /// Toplum tepkisi stat'ını döner (0-100).
+    /// </summary>
+    public float GetProtestStat()
+    {
+        return protestStat;
+    }
+
     // ==================== İÇ MANTIK ====================
 
     /// <summary>
@@ -919,6 +1078,13 @@ public class WarForOilManager : MonoBehaviour
         isCornerGrabRace = false;
         rivalInvasionTriggered = false;
         rivalCountry = null;
+        protestPending = false;
+        protestActive = false;
+        protestTriggered = false;
+        protestSuppressed = false;
+        protestStat = 0f;
+        protestDriftRate = 0f;
+        protestDriftTimer = 0f;
 
         OnWarStarted?.Invoke(selectedCountry, database.warDuration);
     }
@@ -926,10 +1092,19 @@ public class WarForOilManager : MonoBehaviour
     /// <summary>
     /// Savaş sırasında event tetiklemeyi dener.
     /// Köşe kapma yarışı aktifse cornerGrabEvents'ten, değilse database.events'ten çeker.
+    /// Toplum tepkisi aktifse ek olarak protestEvents havuzundan da event gelebilir.
     /// </summary>
     private void TryTriggerWarEvent()
     {
         if (eventsBlocked) return;
+
+        //toplum tepkisi faz 2: bekleyen protest event'ini göster
+        if (protestPending)
+        {
+            protestPending = false;
+            ActivateProtest();
+            return;
+        }
 
         //rakip işgal tetikleme kontrolü (henüz tetiklenmemişse ve koşullar uygunsa)
         if (!rivalInvasionTriggered && !isCornerGrabRace && !isInChain
@@ -943,22 +1118,54 @@ public class WarForOilManager : MonoBehaviour
             }
         }
 
+        //toplum tepkisi faz 1: koşullar uygunsa foreshadow tetikle (bu cycle'da event gösterilmez)
+        if (!protestTriggered && !protestActive && !isInChain
+            && warTimer >= database.protestMinWarTime
+            && database.protestTriggerEvent != null)
+        {
+            if (UnityEngine.Random.value < database.protestChance)
+            {
+                protestPending = true;
+                protestTriggered = true; //bir daha tetiklenmez
+                OnProtestForeshadow?.Invoke();
+                return; //bu cycle'ı tüket, event gösterilmez
+            }
+        }
+
         //aktif event havuzunu belirle
         List<WarForOilEvent> eventPool = isCornerGrabRace ? database.cornerGrabEvents : database.events;
-        if (eventPool == null || eventPool.Count == 0) return;
 
         //tetiklenebilir eventleri filtrele (tekrar limiti + minimum süre)
         List<WarForOilEvent> available = new List<WarForOilEvent>();
-        for (int i = 0; i < eventPool.Count; i++)
+        if (eventPool != null)
         {
-            WarForOilEvent evt = eventPool[i];
-            if (warTimer < evt.minWarTime) continue;
+            for (int i = 0; i < eventPool.Count; i++)
+            {
+                WarForOilEvent evt = eventPool[i];
+                if (warTimer < evt.minWarTime) continue;
 
-            eventTriggerCounts.TryGetValue(evt, out int count);
-            if (count == 0) //hiç tetiklenmemiş — her zaman uygun
-                available.Add(evt);
-            else if (evt.isRepeatable && count <= evt.maxRepeatCount) //tekrar limiti içinde
-                available.Add(evt);
+                eventTriggerCounts.TryGetValue(evt, out int count);
+                if (count == 0)
+                    available.Add(evt);
+                else if (evt.isRepeatable && count <= evt.maxRepeatCount)
+                    available.Add(evt);
+            }
+        }
+
+        //toplum tepkisi aktifse protest havuzundan da eventler ekle (çift havuz)
+        if (protestActive && !protestSuppressed && database.protestEvents != null)
+        {
+            for (int i = 0; i < database.protestEvents.Count; i++)
+            {
+                WarForOilEvent evt = database.protestEvents[i];
+                if (warTimer < evt.minWarTime) continue;
+
+                eventTriggerCounts.TryGetValue(evt, out int count);
+                if (count == 0)
+                    available.Add(evt);
+                else if (evt.isRepeatable && count <= evt.maxRepeatCount)
+                    available.Add(evt);
+            }
         }
 
         if (available.Count == 0) return;
@@ -1219,9 +1426,11 @@ public class WarForOilResult
     public bool wasDeal; //anlaşmayla mı bitti
     public bool wasChainCollapse; //zincir çöküşüyle mi bitti
     public bool wasCornerGrabRace; //köşe kapma yarışı mıydı
+    public bool wasProtestCeasefire; //toplum tepkisi yüzünden ateşkes mi
     public WarForOilCountry rivalCountry; //rakip ülke (varsa)
     public float rivalRewardGain; //rakip ülkenin kazandığı bonus reward
     public float finalSupportStat;
+    public float finalProtestStat; //toplum tepkisi son değeri (aktifse)
     public float winChance; //hesaplanan kazanma şansı
     public float wealthChange;
     public float suspicionChange;

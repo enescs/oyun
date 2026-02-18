@@ -143,6 +143,8 @@ public class WarForOilEventEditor : Editor
         EditorGUILayout.PropertyField(choice.FindPropertyRelative("costModifier"));
         EditorGUILayout.PropertyField(choice.FindPropertyRelative("cornerGrabModifier"),
             new GUIContent("Köşe Kapma Modifier"));
+        EditorGUILayout.PropertyField(choice.FindPropertyRelative("protestModifier"),
+            new GUIContent("Toplum Tepkisi Modifier"));
 
         EditorGUILayout.Space(4);
 
@@ -271,6 +273,7 @@ public class WarForOilEventEditor : Editor
         choice.FindPropertyRelative("politicalInfluenceModifier").floatValue = 0f;
         choice.FindPropertyRelative("costModifier").intValue = 0;
         choice.FindPropertyRelative("cornerGrabModifier").floatValue = 0f;
+        choice.FindPropertyRelative("protestModifier").floatValue = 0f;
         choice.FindPropertyRelative("endsWar").boolValue = false;
         choice.FindPropertyRelative("warEndDelay").floatValue = 0f;
         choice.FindPropertyRelative("reducesReward").boolValue = false;

@@ -48,4 +48,15 @@ public class WarForOilDatabase : ScriptableObject
     public float initialCornerGrabStat = 50f; //köşe kapma stat başlangıç değeri (0-100, 50 = eşit)
     public WarForOilEvent rivalOfferEvent; //rakip işgal teklif event'i (kabul/red seçenekleri)
     public List<WarForOilEvent> cornerGrabEvents; //köşe kapma yarışı event havuzu
+
+    [Header("Toplum Tepkisi Ayarları")]
+    public float protestMinWarTime = 90f; //toplum tepkisinin en erken tetiklenebileceği savaş süresi (saniye)
+    [Range(0f, 1f)] public float protestChance = 0.25f; //her event check'te toplum tepkisi tetiklenme şansı
+    public float initialProtestStat = 30f; //toplum tepkisi başlangıç değeri (0-100)
+    public float protestFailThreshold = 80f; //bu değerin üstünde savaş otomatik ateşkese bağlanır
+    public float protestSuccessThreshold = 10f; //bu değerin altına düşürülürse tepki bastırılmış sayılır
+    public float protestDriftInterval = 3f; //pasif drift tick aralığı (saniye)
+    public float protestDriftDivisor = 10f; //drift = son choice modifier / divisor (her tick'te uygulanır)
+    public WarForOilEvent protestTriggerEvent; //toplum tepkisi başlangıç event'i (gösterilere başlandı)
+    public List<WarForOilEvent> protestEvents; //toplum tepkisi event havuzu
 }
