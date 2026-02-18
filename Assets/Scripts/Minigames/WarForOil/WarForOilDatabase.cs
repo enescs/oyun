@@ -45,6 +45,7 @@ public class WarForOilDatabase : ScriptableObject
     [Range(0f, 1f)] public float rivalInvasionChance = 0.3f; //her event check'te rakip işgal tetiklenme şansı
     [Range(0f, 1f)] public float rivalDealRewardRatio = 0.6f; //anlaşmada oyuncuya kalan ödül oranı
     public float rivalDealEndDelay = 10f; //anlaşma kabul edilince savaş bitiş gecikmesi (saniye)
+    public float initialCornerGrabStat = 50f; //köşe kapma stat başlangıç değeri (0-100, 50 = eşit)
     public WarForOilEvent rivalOfferEvent; //rakip işgal teklif event'i (kabul/red seçenekleri)
     public List<WarForOilEvent> cornerGrabEvents; //köşe kapma yarışı event havuzu
 }

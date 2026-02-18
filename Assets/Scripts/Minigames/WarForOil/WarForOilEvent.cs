@@ -52,6 +52,7 @@ public class WarForOilEventChoice
     public float suspicionModifier; //şüphe etkisi
     public float politicalInfluenceModifier; //politik nüfuz etkisi (negatif = düşürür)
     public int costModifier; //maliyet etkisi
+    public float cornerGrabModifier; //köşe kapma stat'ını etkiler (pozitif = bizim lehimize)
 
     //diğer sonuçlar (Editor tarafından foldout içinde çizilir)
     public bool endsWar; //bu seçenek savaşı bitirir mi

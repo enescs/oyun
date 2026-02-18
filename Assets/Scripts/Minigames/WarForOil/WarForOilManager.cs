@@ -48,6 +48,7 @@ public class WarForOilManager : MonoBehaviour
     private bool isCornerGrabRace; //köşe kapma yarışı aktif mi
     private bool rivalInvasionTriggered; //bu savaşta rakip işgal zaten tetiklendi mi
     private WarForOilCountry rivalCountry; //rakip işgale giren ülke
+    private float cornerGrabStat; //köşe kapma stat'ı (0-100, yüksek = bizim lehimize)
     private Dictionary<WarForOilCountry, float> bonusRewards = new Dictionary<WarForOilCountry, float>(); //rakip işgallerden ülkelere eklenen bonus ödül
 
     //sonuç ekranı beklerken saklanan sonuç
@@ -82,6 +83,7 @@ public class WarForOilManager : MonoBehaviour
     public static event Action<string> OnChainEnded; //zincir bitti (sebep: "collapse", "ceasefire", "government_collapse")
     public static event Action<WarForOilCountry> OnRivalInvasionStarted; //rakip işgal tetiklendi (UI rakip ülkeyi gösterebilir)
     public static event Action OnCornerGrabStarted; //köşe kapma yarışı başladı (anlaşma reddedildi)
+    public static event Action<float> OnCornerGrabStatChanged; //köşe kapma stat'ı değişti (0-100)
 
     void Start()
     {
@@ -228,6 +230,13 @@ public class WarForOilManager : MonoBehaviour
 
         //supportStat güncelle
         supportStat = Mathf.Clamp(supportStat + choice.supportModifier, 0f, 100f);
+
+        //köşe kapma stat güncelle (sadece yarış aktifse)
+        if (isCornerGrabRace && choice.cornerGrabModifier != 0f)
+        {
+            cornerGrabStat = Mathf.Clamp(cornerGrabStat + choice.cornerGrabModifier, 0f, 100f);
+            OnCornerGrabStatChanged?.Invoke(cornerGrabStat);
+        }
 
         WarForOilEvent resolvedEvent = currentEvent;
         OnWarEventResolved?.Invoke(choice);
@@ -814,9 +823,11 @@ public class WarForOilManager : MonoBehaviour
     private void RejectRivalDeal()
     {
         isCornerGrabRace = true;
+        cornerGrabStat = database.initialCornerGrabStat;
         eventTriggerCounts.Clear(); //yeni havuz için sayaçları sıfırla
 
         OnCornerGrabStarted?.Invoke();
+        OnCornerGrabStatChanged?.Invoke(cornerGrabStat);
 
         //savaş sürecine geri dön
         currentState = WarForOilState.WarProcess;
@@ -853,6 +864,14 @@ public class WarForOilManager : MonoBehaviour
         if (country == null) return 0f;
         bonusRewards.TryGetValue(country, out float bonus);
         return bonus;
+    }
+
+    /// <summary>
+    /// Köşe kapma stat'ını döner (0-100).
+    /// </summary>
+    public float GetCornerGrabStat()
+    {
+        return cornerGrabStat;
     }
 
     /// <summary>
@@ -1050,15 +1069,18 @@ public class WarForOilManager : MonoBehaviour
 
             if (warWon)
             {
-                //köşe kapma yarışı aktifse rakip ülkeye payını ekle
+                //köşe kapma yarışı aktifse bölüşüm cornerGrabStat'a göre
                 if (isCornerGrabRace && rivalCountry != null)
                 {
-                    float rivalShare = effectiveBaseReward * (1f - supportRatio);
+                    float grabRatio = cornerGrabStat / 100f; //bizim payımız (0-1)
+                    float rivalShare = effectiveBaseReward * (1f - grabRatio);
                     AddBonusReward(rivalCountry, rivalShare);
                 }
 
                 //kazanıldı — ödül destek oranına göre (supportRewardRatio ile sınırlı)
-                float reward = effectiveBaseReward * rewardMultiplier * supportRatio * database.supportRewardRatio;
+                //köşe kapma yarışındaysa ödül cornerGrabStat'a göre bölünür
+                float rewardRatio = isCornerGrabRace ? (cornerGrabStat / 100f) : supportRatio;
+                float reward = effectiveBaseReward * rewardMultiplier * rewardRatio * database.supportRewardRatio;
                 pendingResult.wealthChange = reward - accumulatedCostModifier;
                 pendingResult.suspicionChange = accumulatedSuspicionModifier;
                 pendingResult.politicalInfluenceChange = accumulatedPoliticalInfluenceModifier;
@@ -1081,8 +1103,8 @@ public class WarForOilManager : MonoBehaviour
             //rakip ülkenin bu savaştan kazandığı toplam bonus
             if (isCornerGrabRace && pendingResult.warWon)
             {
-                float supportRatioForRival = supportStat / 100f;
-                pendingResult.rivalRewardGain = effectiveBaseReward * (1f - supportRatioForRival);
+                float grabRatioForResult = cornerGrabStat / 100f;
+                pendingResult.rivalRewardGain = effectiveBaseReward * (1f - grabRatioForResult);
             }
             else if (pendingDeal)
             {
