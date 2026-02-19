@@ -182,6 +182,9 @@ Event icindeki tek bir secenek. Serializable sinif.
 | `dealRewardRatio` | Normal kazanimin bu orani garanti verilir (0.8 = %80) |
 | `blocksEvents` | Secilirse savas sonuna kadar yeni event gelmez |
 | `freezesFeed` | Secilince sosyal medya feed'ini dondurur (SocialMediaManager.TryFreezeFeed) |
+| `hasFeedOverride` | Feed'i Militarizm konusuna yonlendirir (SocialMediaManager.SetEventOverride) |
+| `feedOverrideRatio` | Yonlendirme orani (0-1, orn. 0.8 = %80) |
+| `feedOverrideDuration` | Yonlendirme suresi (saniye) |
 | **Zincir Flagleri** (foldout) | |
 | `continuesChain` | Zinciri devam ettirir (fonlama) |
 | `isChainRefusal` | Zincirde reddetme sayacini artirir |

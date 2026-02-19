@@ -6,6 +6,7 @@ using System.Collections.Generic;
 public class WarForOilEventEditor : Editor
 {
     //per-choice foldout durumları
+    private Dictionary<int, bool> modifierFoldouts = new Dictionary<int, bool>();
     private Dictionary<int, bool> consequenceFoldouts = new Dictionary<int, bool>();
     private Dictionary<int, bool> prerequisiteFoldouts = new Dictionary<int, bool>();
     private Dictionary<int, bool> chainChoiceFoldouts = new Dictionary<int, bool>();
@@ -137,18 +138,36 @@ public class WarForOilEventEditor : Editor
         //temel alanlar
         EditorGUILayout.PropertyField(choice.FindPropertyRelative("displayName"));
         EditorGUILayout.PropertyField(choice.FindPropertyRelative("description"));
-        EditorGUILayout.PropertyField(choice.FindPropertyRelative("supportModifier"));
-        EditorGUILayout.PropertyField(choice.FindPropertyRelative("suspicionModifier"));
-        EditorGUILayout.PropertyField(choice.FindPropertyRelative("reputationModifier"),
-            new GUIContent("İtibar Modifier"));
-        EditorGUILayout.PropertyField(choice.FindPropertyRelative("politicalInfluenceModifier"));
-        EditorGUILayout.PropertyField(choice.FindPropertyRelative("costModifier"));
-        EditorGUILayout.PropertyField(choice.FindPropertyRelative("cornerGrabModifier"),
-            new GUIContent("Köşe Kapma Modifier"));
-        EditorGUILayout.PropertyField(choice.FindPropertyRelative("protestModifier"),
-            new GUIContent("Toplum Tepkisi Modifier"));
 
-        EditorGUILayout.Space(4);
+        EditorGUILayout.Space(2);
+
+        //modifier'lar — foldout
+        if (!modifierFoldouts.ContainsKey(index))
+            modifierFoldouts[index] = false;
+        modifierFoldouts[index] = EditorGUILayout.Foldout(
+            modifierFoldouts[index], "Modifiers", true);
+
+        if (modifierFoldouts[index])
+        {
+            EditorGUI.indentLevel++;
+            EditorGUILayout.PropertyField(choice.FindPropertyRelative("supportModifier"),
+                new GUIContent("Destek"));
+            EditorGUILayout.PropertyField(choice.FindPropertyRelative("suspicionModifier"),
+                new GUIContent("Şüphe"));
+            EditorGUILayout.PropertyField(choice.FindPropertyRelative("reputationModifier"),
+                new GUIContent("İtibar"));
+            EditorGUILayout.PropertyField(choice.FindPropertyRelative("politicalInfluenceModifier"),
+                new GUIContent("Politik Nüfuz"));
+            EditorGUILayout.PropertyField(choice.FindPropertyRelative("costModifier"),
+                new GUIContent("Maliyet"));
+            EditorGUILayout.PropertyField(choice.FindPropertyRelative("cornerGrabModifier"),
+                new GUIContent("Köşe Kapma"));
+            EditorGUILayout.PropertyField(choice.FindPropertyRelative("protestModifier"),
+                new GUIContent("Toplum Tepkisi"));
+            EditorGUI.indentLevel--;
+        }
+
+        EditorGUILayout.Space(2);
 
         //diğer sonuçlar — foldout, tiklendiğinde alt alanlar açılır
         if (!consequenceFoldouts.ContainsKey(index))
@@ -202,6 +221,20 @@ public class WarForOilEventEditor : Editor
             EditorGUILayout.PropertyField(
                 choice.FindPropertyRelative("freezesFeed"),
                 new GUIContent("Feed Dondur"));
+
+            SerializedProperty hasFeedOverride = choice.FindPropertyRelative("hasFeedOverride");
+            EditorGUILayout.PropertyField(hasFeedOverride, new GUIContent("Feed Yönlendir (Militarizm)"));
+            if (hasFeedOverride.boolValue)
+            {
+                EditorGUI.indentLevel++;
+                EditorGUILayout.PropertyField(
+                    choice.FindPropertyRelative("feedOverrideRatio"),
+                    new GUIContent("Oran"));
+                EditorGUILayout.PropertyField(
+                    choice.FindPropertyRelative("feedOverrideDuration"),
+                    new GUIContent("Süre (sn)"));
+                EditorGUI.indentLevel--;
+            }
 
             EditorGUI.indentLevel--;
         }
@@ -289,6 +322,9 @@ public class WarForOilEventEditor : Editor
         choice.FindPropertyRelative("dealRewardRatio").floatValue = 0f;
         choice.FindPropertyRelative("blocksEvents").boolValue = false;
         choice.FindPropertyRelative("freezesFeed").boolValue = false;
+        choice.FindPropertyRelative("hasFeedOverride").boolValue = false;
+        choice.FindPropertyRelative("feedOverrideRatio").floatValue = 0f;
+        choice.FindPropertyRelative("feedOverrideDuration").floatValue = 0f;
         choice.FindPropertyRelative("continuesChain").boolValue = false;
         choice.FindPropertyRelative("isChainRefusal").boolValue = false;
         choice.FindPropertyRelative("triggersCeasefire").boolValue = false;

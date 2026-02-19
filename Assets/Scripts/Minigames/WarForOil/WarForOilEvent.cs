@@ -58,6 +58,9 @@ public class WarForOilEventChoice
 
     //feed etkileri
     public bool freezesFeed; //seçilince sosyal medya feed'ini dondurur (SocialMediaManager.TryFreezeFeed)
+    public bool hasFeedOverride; //feed'i Militarizm konusuna yönlendirir (SocialMediaManager.SetEventOverride)
+    [Range(0f, 1f)] public float feedOverrideRatio; //yönlendirme oranı (0-1, örn. 0.8 = %80)
+    public float feedOverrideDuration; //yönlendirme süresi (saniye)
 
     //diğer sonuçlar (Editor tarafından foldout içinde çizilir)
     public bool endsWar; //bu seçenek savaşı bitirir mi

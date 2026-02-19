@@ -9,5 +9,6 @@ public enum TopicType
     Bankacilik,
     Sosyete,
     Spor,
-    Genel
+    Genel,
+    Militarizm
 }
