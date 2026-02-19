@@ -11,6 +11,7 @@ public class WarForOilEventEditor : Editor
     private Dictionary<int, bool> prerequisiteFoldouts = new Dictionary<int, bool>();
     private Dictionary<int, bool> chainChoiceFoldouts = new Dictionary<int, bool>();
     private Dictionary<int, bool> rivalFoldouts = new Dictionary<int, bool>();
+    private Dictionary<int, bool> vandalismFoldouts = new Dictionary<int, bool>();
     private bool chainFoldout;
 
     public override void OnInspectorGUI()
@@ -302,6 +303,45 @@ public class WarForOilEventEditor : Editor
 
         EditorGUILayout.Space(2);
 
+        //vandalizm etkileri — foldout
+        if (!vandalismFoldouts.ContainsKey(index))
+            vandalismFoldouts[index] = false;
+        vandalismFoldouts[index] = EditorGUILayout.Foldout(
+            vandalismFoldouts[index], "Vandalizm Etkisi", true);
+
+        if (vandalismFoldouts[index])
+        {
+            EditorGUI.indentLevel++;
+
+            SerializedProperty affectsVandalism = choice.FindPropertyRelative("affectsVandalism");
+            EditorGUILayout.PropertyField(affectsVandalism, new GUIContent("Vandalizmi Etkiler"));
+
+            if (affectsVandalism.boolValue)
+            {
+                SerializedProperty changeType = choice.FindPropertyRelative("vandalismChangeType");
+                EditorGUILayout.PropertyField(changeType, new GUIContent("Değişim Tipi"));
+
+                EditorGUI.indentLevel++;
+                if ((VandalismChangeType)changeType.enumValueIndex == VandalismChangeType.Direct)
+                {
+                    EditorGUILayout.PropertyField(
+                        choice.FindPropertyRelative("vandalismTargetLevel"),
+                        new GUIContent("Hedef Seviye"));
+                }
+                else
+                {
+                    EditorGUILayout.PropertyField(
+                        choice.FindPropertyRelative("vandalismLevelDelta"),
+                        new GUIContent("Seviye Değişimi (+/-)"));
+                }
+                EditorGUI.indentLevel--;
+            }
+
+            EditorGUI.indentLevel--;
+        }
+
+        EditorGUILayout.Space(2);
+
         //ön koşullar — foldout
         if (!prerequisiteFoldouts.ContainsKey(index))
             prerequisiteFoldouts[index] = false;
@@ -352,6 +392,10 @@ public class WarForOilEventEditor : Editor
         choice.FindPropertyRelative("triggersCeasefire").boolValue = false;
         choice.FindPropertyRelative("acceptsRivalDeal").boolValue = false;
         choice.FindPropertyRelative("rejectsRivalDeal").boolValue = false;
+        choice.FindPropertyRelative("affectsVandalism").boolValue = false;
+        choice.FindPropertyRelative("vandalismChangeType").enumValueIndex = 0;
+        choice.FindPropertyRelative("vandalismTargetLevel").enumValueIndex = 0;
+        choice.FindPropertyRelative("vandalismLevelDelta").intValue = 0;
         choice.FindPropertyRelative("requiredSkills").ClearArray();
         choice.FindPropertyRelative("statConditions").ClearArray();
     }

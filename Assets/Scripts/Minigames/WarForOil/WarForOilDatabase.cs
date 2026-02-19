@@ -59,4 +59,11 @@ public class WarForOilDatabase : ScriptableObject
     public float protestDriftDivisor = 10f; //drift = son choice modifier / divisor (her tick'te uygulanır)
     public WarForOilEvent protestTriggerEvent; //toplum tepkisi başlangıç event'i (gösterilere başlandı)
     public List<WarForOilEvent> protestEvents; //toplum tepkisi event havuzu
+
+    [Header("Vandalizm Ayarları")]
+    public float vandalismDamageInterval = 5f; //hasar tick aralığı (saniye)
+    public float vandalismLightDamage = 5f; //hafif seviyede tick başına wealth kaybı
+    public float vandalismModerateDamage = 15f; //orta seviyede tick başına wealth kaybı
+    public float vandalismHeavyDamage = 30f; //ağır seviyede tick başına wealth kaybı
+    public float vandalismSevereDamage = 50f; //şiddetli seviyede tick başına wealth kaybı
 }

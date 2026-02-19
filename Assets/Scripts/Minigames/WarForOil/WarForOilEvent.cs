@@ -85,6 +85,12 @@ public class WarForOilEventChoice
     public bool acceptsRivalDeal; //rakip işgal anlaşmasını kabul eder
     public bool rejectsRivalDeal; //rakip işgal anlaşmasını reddeder → köşe kapma yarışı başlar
 
+    //vandalizm etkileri (Editor tarafından foldout içinde çizilir)
+    public bool affectsVandalism; //bu choice vandalizm seviyesini değiştirir mi
+    public VandalismChangeType vandalismChangeType; //direkt atama mı göreceli mi
+    public VandalismLevel vandalismTargetLevel; //direkt atama: hedef seviye
+    public int vandalismLevelDelta; //göreceli değişim: +/- tık (Light=1, Moderate=2, Heavy=3, Severe=4)
+
     //ön koşullar (Editor tarafından foldout içinde çizilir)
     public List<Skill> requiredSkills; //bu seçenek için açılmış olması gereken skill'ler
     public List<StatCondition> statConditions; //bu seçenek için sağlanması gereken stat koşulları
@@ -134,4 +140,23 @@ public class RefusalThreshold
     public float minSupport; //bu aralığın alt sınırı (dahil)
     public float maxSupport; //bu aralığın üst sınırı (hariç)
     public int maxRefusals; //bu aralıkta izin verilen max reddetme sayısı
+}
+
+/// <summary>
+/// Vandalizm seviyesi. Light(1)-Severe(4) aktif seviyeler, altına düşerse Ended olur.
+/// </summary>
+public enum VandalismLevel
+{
+    None,       //vandalizm yok (başlamadı)
+    Light,      //hafif (1)
+    Moderate,   //orta (2)
+    Heavy,      //ağır (3)
+    Severe,     //şiddetli (4)
+    Ended       //vandalizm bitti/bastırıldı
+}
+
+public enum VandalismChangeType
+{
+    Direct,     //direkt belirli bir seviyeye ata
+    Relative    //mevcut seviyeyi +/- kaydır
 }

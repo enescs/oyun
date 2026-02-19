@@ -61,6 +61,10 @@ public class WarForOilManager : MonoBehaviour
     private float protestDriftRate; //pasif drift hızı (son choice modifier / divisor, her tick'te uygulanır)
     private float protestDriftTimer; //drift tick zamanlayıcı
 
+    //vandalizm sistemi
+    private VandalismLevel currentVandalismLevel = VandalismLevel.None;
+    private float vandalismDamageTimer;
+
     //sonuç ekranı beklerken saklanan sonuç
     private WarForOilResult pendingResult;
 
@@ -98,6 +102,8 @@ public class WarForOilManager : MonoBehaviour
     public static event Action OnProtestStarted; //toplum tepkisi başladı
     public static event Action<float> OnProtestStatChanged; //toplum tepkisi stat'ı değişti (0-100)
     public static event Action OnProtestSuppressed; //toplum tepkisi başarıyla bastırıldı
+    public static event Action<VandalismLevel> OnVandalismLevelChanged; //vandalizm seviyesi değişti
+    public static event Action<float> OnVandalismDamage; //vandalizm hasar tick'i (UI animasyon için)
 
     void Start()
     {
@@ -301,6 +307,9 @@ public class WarForOilManager : MonoBehaviour
             }
         }
 
+        //vandalizm seviyesi güncelle
+        ApplyVandalismChange(choice);
+
         WarForOilEvent resolvedEvent = currentEvent;
         OnWarEventResolved?.Invoke(choice);
 
@@ -437,6 +446,7 @@ public class WarForOilManager : MonoBehaviour
         pendingResult.warWon = false;
         pendingResult.wasCeasefire = true;
         pendingResult.finalSupportStat = supportStat;
+        pendingResult.finalVandalismLevel = currentVandalismLevel;
         pendingResult.winChance = 0f;
         pendingResult.wealthChange = wealthChange;
         pendingResult.suspicionChange = accumulatedSuspicionModifier;
@@ -647,6 +657,22 @@ public class WarForOilManager : MonoBehaviour
             }
         }
 
+        //vandalizm hasar tick'i
+        if (currentVandalismLevel != VandalismLevel.None && currentVandalismLevel != VandalismLevel.Ended)
+        {
+            vandalismDamageTimer += Time.deltaTime;
+            if (vandalismDamageTimer >= database.vandalismDamageInterval)
+            {
+                vandalismDamageTimer = 0f;
+                float damage = GetVandalismDamage(currentVandalismLevel);
+                if (damage > 0f && GameStatManager.Instance != null)
+                {
+                    GameStatManager.Instance.AddWealth(-damage);
+                    OnVandalismDamage?.Invoke(damage);
+                }
+            }
+        }
+
         //event kontrol
         eventCheckTimer += Time.deltaTime;
         if (eventCheckTimer >= database.eventInterval)
@@ -852,6 +878,7 @@ public class WarForOilManager : MonoBehaviour
             pendingResult.warWon = false;
             pendingResult.wasCeasefire = true;
             pendingResult.finalSupportStat = supportStat;
+            pendingResult.finalVandalismLevel = currentVandalismLevel;
             pendingResult.winChance = 0f;
             pendingResult.wealthChange = wealthChange;
             pendingResult.suspicionChange = accumulatedSuspicionModifier;
@@ -871,6 +898,7 @@ public class WarForOilManager : MonoBehaviour
             pendingResult.wasCeasefire = false;
             pendingResult.wasChainCollapse = true;
             pendingResult.finalSupportStat = supportStat;
+            pendingResult.finalVandalismLevel = currentVandalismLevel;
             pendingResult.winChance = 0f;
             pendingResult.wealthChange = -(database.warLossPenalty + accumulatedCostModifier);
             pendingResult.suspicionChange = database.warLossSuspicionIncrease + accumulatedSuspicionModifier;
@@ -1039,6 +1067,7 @@ public class WarForOilManager : MonoBehaviour
         pendingResult.wasProtestCeasefire = true;
         pendingResult.finalSupportStat = supportStat;
         pendingResult.finalProtestStat = protestStat;
+        pendingResult.finalVandalismLevel = currentVandalismLevel;
         pendingResult.winChance = 0f;
         pendingResult.wealthChange = wealthChange;
         pendingResult.suspicionChange = accumulatedSuspicionModifier;
@@ -1082,6 +1111,96 @@ public class WarForOilManager : MonoBehaviour
         return protestStat;
     }
 
+    // ==================== VANDALİZM SİSTEMİ ====================
+
+    /// <summary>
+    /// Choice'un vandalizm etkisini uygular.
+    /// </summary>
+    private void ApplyVandalismChange(WarForOilEventChoice choice)
+    {
+        if (!choice.affectsVandalism) return;
+
+        VandalismLevel newLevel;
+
+        if (choice.vandalismChangeType == VandalismChangeType.Direct)
+        {
+            newLevel = choice.vandalismTargetLevel;
+        }
+        else
+        {
+            //göreceli değişim: mevcut seviyeyi sayısal olarak kaydır
+            int currentNumeric = VandalismLevelToInt(currentVandalismLevel);
+            int result = currentNumeric + choice.vandalismLevelDelta;
+
+            if (result < 1)
+                newLevel = VandalismLevel.Ended; //alt sınırın altı → bitti
+            else if (result > 4)
+                newLevel = VandalismLevel.Severe; //üst sınır → severe'da kal
+            else
+                newLevel = IntToVandalismLevel(result);
+        }
+
+        if (newLevel != currentVandalismLevel)
+        {
+            currentVandalismLevel = newLevel;
+            vandalismDamageTimer = 0f; //seviye değişince timer sıfırla
+            OnVandalismLevelChanged?.Invoke(currentVandalismLevel);
+        }
+    }
+
+    /// <summary>
+    /// Vandalizm seviyesine göre tick başına hasar miktarını döner.
+    /// </summary>
+    private float GetVandalismDamage(VandalismLevel level)
+    {
+        switch (level)
+        {
+            case VandalismLevel.Light: return database.vandalismLightDamage;
+            case VandalismLevel.Moderate: return database.vandalismModerateDamage;
+            case VandalismLevel.Heavy: return database.vandalismHeavyDamage;
+            case VandalismLevel.Severe: return database.vandalismSevereDamage;
+            default: return 0f;
+        }
+    }
+
+    /// <summary>
+    /// VandalismLevel → sayısal değer (Light=1, Moderate=2, Heavy=3, Severe=4). None/Ended → 0.
+    /// </summary>
+    private int VandalismLevelToInt(VandalismLevel level)
+    {
+        switch (level)
+        {
+            case VandalismLevel.Light: return 1;
+            case VandalismLevel.Moderate: return 2;
+            case VandalismLevel.Heavy: return 3;
+            case VandalismLevel.Severe: return 4;
+            default: return 0;
+        }
+    }
+
+    /// <summary>
+    /// Sayısal değer → VandalismLevel (1=Light, 2=Moderate, 3=Heavy, 4=Severe).
+    /// </summary>
+    private VandalismLevel IntToVandalismLevel(int value)
+    {
+        switch (value)
+        {
+            case 1: return VandalismLevel.Light;
+            case 2: return VandalismLevel.Moderate;
+            case 3: return VandalismLevel.Heavy;
+            case 4: return VandalismLevel.Severe;
+            default: return VandalismLevel.None;
+        }
+    }
+
+    /// <summary>
+    /// Mevcut vandalizm seviyesini döner.
+    /// </summary>
+    public VandalismLevel GetVandalismLevel()
+    {
+        return currentVandalismLevel;
+    }
+
     // ==================== İÇ MANTIK ====================
 
     /// <summary>
@@ -1119,6 +1238,8 @@ public class WarForOilManager : MonoBehaviour
         protestStat = 0f;
         protestDriftRate = 0f;
         protestDriftTimer = 0f;
+        currentVandalismLevel = VandalismLevel.None;
+        vandalismDamageTimer = 0f;
 
         OnWarStarted?.Invoke(selectedCountry, database.warDuration);
     }
@@ -1283,6 +1404,7 @@ public class WarForOilManager : MonoBehaviour
             pendingResult.warWon = true;
             pendingResult.wasDeal = true;
             pendingResult.finalSupportStat = supportStat;
+            pendingResult.finalVandalismLevel = currentVandalismLevel;
             pendingResult.winChance = 1f;
             pendingResult.wealthChange = dealReward - accumulatedCostModifier;
             pendingResult.suspicionChange = accumulatedSuspicionModifier;
@@ -1306,6 +1428,7 @@ public class WarForOilManager : MonoBehaviour
             pendingResult.country = selectedCountry;
             pendingResult.warWon = warWon;
             pendingResult.finalSupportStat = supportStat;
+            pendingResult.finalVandalismLevel = currentVandalismLevel;
             pendingResult.winChance = winChance;
 
             if (warWon)
@@ -1465,6 +1588,7 @@ public class WarForOilResult
     public float rivalRewardGain; //rakip ülkenin kazandığı bonus reward
     public float finalSupportStat;
     public float finalProtestStat; //toplum tepkisi son değeri (aktifse)
+    public VandalismLevel finalVandalismLevel; //savaş sonu vandalizm seviyesi
     public float winChance; //hesaplanan kazanma şansı
     public float wealthChange;
     public float suspicionChange;

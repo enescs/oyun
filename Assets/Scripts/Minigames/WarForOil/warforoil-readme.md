@@ -4,7 +4,7 @@
 
 Oyuncu, petrol kaynaklari zengin ulkeleri secip hukumetine baski yaparak savas baslatir. Savas surecinde gelen eventlere yanit vererek halk destegini yonetir. Savas sonunda olasilik tabanli bir kontrol yapilir — kazanilirsa ulkenin kaynaklari ele gecirilir, kaybedilirse agir cezalar uygulanir ve **minigame kalici olarak devre disi kalir**.
 
-Savas sirasinda **event zincirleri** (hukumet fonlama krizi gibi), **rakip isgal** (baska bir ulkenin ayni hedefe saldirmasi) ve **toplum tepkisi** (savas karsiti gosteriler) tetiklenebilir.
+Savas sirasinda **event zincirleri** (hukumet fonlama krizi gibi), **rakip isgal** (baska bir ulkenin ayni hedefe saldirmasi), **toplum tepkisi** (savas karsiti gosteriler) ve **vandalizm** (pasif gelir urunlerine saldiri) tetiklenebilir.
 
 ---
 
@@ -107,6 +107,12 @@ Tum minigame ayarlarinin tek noktadan yonetildigi ScriptableObject.
 | `protestDriftDivisor` | 10 | drift = son choice modifier / divisor (her tick'te) |
 | `protestTriggerEvent` | — | Toplum tepkisi baslangic event'i |
 | `protestEvents` | — | Toplum tepkisi event havuzu |
+| **Vandalizm Ayarlari** | | |
+| `vandalismDamageInterval` | 5 sn | Vandalizm hasar tick araligi |
+| `vandalismLightDamage` | 5 | Light seviyede tick basina wealth kaybi |
+| `vandalismModerateDamage` | 15 | Moderate seviyede tick basina wealth kaybi |
+| `vandalismHeavyDamage` | 30 | Heavy seviyede tick basina wealth kaybi |
+| `vandalismSevereDamage` | 50 | Severe seviyede tick basina wealth kaybi |
 
 ### WarForOilCountry
 
@@ -196,6 +202,11 @@ Event icindeki tek bir secenek. Serializable sinif.
 | **Rakip Isgal Flagleri** (foldout) | |
 | `acceptsRivalDeal` | Rakip isgal anlasmasini kabul eder |
 | `rejectsRivalDeal` | Rakip isgal anlasmasini reddeder → kose kapma yarisi baslar |
+| **Vandalizm Etkisi** (foldout) | |
+| `affectsVandalism` | Bu choice vandalizm seviyesini degistirir mi |
+| `vandalismChangeType` | Direct (hedef seviye ata) veya Relative (+/- tik kaydirma) |
+| `vandalismTargetLevel` | Direct modda: hedef VandalismLevel (None/Light/Moderate/Heavy/Severe/Ended) |
+| `vandalismLevelDelta` | Relative modda: seviye degisimi (orn. +2 = 2 tik artir, -1 = 1 tik azalt) |
 | **On Kosullar** (foldout) | |
 | `requiredSkills` | Bu secenek icin acilmis olmasi gereken skill'ler |
 | `statConditions` | Bu secenek icin saglanmasi gereken stat kosullari |
@@ -217,6 +228,7 @@ Savas sonucu. Manager tarafindan olusturulur, event'lerle UI'a iletilir.
 | `rivalRewardGain` | Rakip ulkenin kazandigi bonus reward |
 | `finalSupportStat` | Savas sonu destek degeri |
 | `finalProtestStat` | Toplum tepkisi son degeri (aktifse) |
+| `finalVandalismLevel` | Savas sonu vandalizm seviyesi (VandalismLevel enum) |
 | `winChance` | Hesaplanan kazanma sansi |
 | `wealthChange` | Para degisimi (+ kazanc, - kayip) |
 | `suspicionChange` | Suphe degisimi |
@@ -400,6 +412,68 @@ Toplum tepkisi eventlerindeki choice'lar:
 
 ---
 
+## Vandalizm Sistemi
+
+Toplum tepkisi eventleri sirasinda vandallar oyuncunun pasif gelir urunlerine saldirabilir. Vandalizm surekli bir stat degil, kesikli seviye (enum) olarak yonetilir.
+
+### VandalismLevel Enum
+
+| Seviye | Numerik | Aciklama |
+|--------|---------|----------|
+| `None` | — | Vandalizm baslamadi |
+| `Light` | 1 | Hafif hasar |
+| `Moderate` | 2 | Orta hasar |
+| `Heavy` | 3 | Agir hasar |
+| `Severe` | 4 | Siddetli hasar |
+| `Ended` | — | Vandalizm bastirildi/bitti |
+
+### Seviye Degisimi
+
+Iki mod vardir (choice basina biri secilir):
+
+**Direct**: Seviyeyi dogrudan hedef enum'a atar.
+- Ornek: `vandalismTargetLevel = Heavy` → vandalizm aninda Heavy olur
+
+**Relative**: Mevcut seviyeyi +/- tik kaydirır.
+- Light=1, Moderate=2, Heavy=3, Severe=4
+- Ornek: Light'tayken +2 → Heavy'ye gecer
+- Sonuc < 1 → Ended (vandalizm bastirildi)
+- Sonuc > 4 → Severe'de kalir (tavan)
+
+### Periyodik Hasar
+
+Aktif vandalizm seviyelerinde (Light-Severe) her `vandalismDamageInterval` saniyede bir wealth kaybi uygulanir:
+
+| Seviye | Tick Basina Kayip |
+|--------|------------------|
+| Light | `vandalismLightDamage` (5) |
+| Moderate | `vandalismModerateDamage` (15) |
+| Heavy | `vandalismHeavyDamage` (30) |
+| Severe | `vandalismSevereDamage` (50) |
+
+None ve Ended seviyelerinde hasar uygulanmaz.
+
+### Inspector Kullanimi
+
+Choice'un "Vandalizm Etkisi" foldout'u acilir:
+1. `Vandalizmi Etkiler` tiklanir
+2. `Degisim Tipi` secilir (Direct veya Relative)
+3. Direct ise `Hedef Seviye` secilir, Relative ise `Seviye Degisimi (+/-)` girilir
+
+### Savas Basi / Sonu
+
+- Savas basladiginda `currentVandalismLevel = None`, hasar timer sifirlanir
+- Savas sonucunda `finalVandalismLevel` kaydedilir (UI gosterebilir)
+
+### Eventler
+
+| Event | Parametre | Ne Zaman |
+|-------|-----------|----------|
+| `OnVandalismLevelChanged` | VandalismLevel | Vandalizm seviyesi degisti |
+| `OnVandalismDamage` | float | Hasar tick'i uygulandı (miktar) |
+
+---
+
 ## Formuller
 
 ### Baski Basari Sansi
@@ -547,6 +621,8 @@ UI'da ayni anda `visibleCountryCount` (varsayilan 3) ulke gosterilir. Her `rotat
 | `OnProtestStarted` | — | Toplum tepkisi basladi |
 | `OnProtestStatChanged` | float | Toplum tepkisi stat'i degisti (0-100) |
 | `OnProtestSuppressed` | — | Toplum tepkisi basariyla bastirildi |
+| `OnVandalismLevelChanged` | VandalismLevel | Vandalizm seviyesi degisti |
+| `OnVandalismDamage` | float | Vandalizm hasar tick'i (miktar) |
 
 ### Getter'lar
 
@@ -568,6 +644,7 @@ UI'da ayni anda `visibleCountryCount` (varsayilan 3) ulke gosterilir. Her `rotat
 | `GetWarProgress()` | float | Savas ilerlemesi (0-1) |
 | `IsProtestActive()` | bool | Toplum tepkisi aktif mi |
 | `GetProtestStat()` | float | Toplum tepkisi degeri (0-100) |
+| `GetVandalismLevel()` | VandalismLevel | Mevcut vandalizm seviyesi |
 
 ---
 
@@ -599,11 +676,13 @@ Zincir basladiginda `EventCoordinator.LockEvents("WarForOilChain")` cagirilir �
 
 - **ChainRole'e gore alan gosterimi**: Head secilince tum zincir config'i (nextChainEvent, chainInterval, skillsToLock, chainFine, refusalThresholds) gosterilir. Link secilince sadece nextChainEvent ve chainInterval gosterilir. None secilince hicbir zincir alani gosterilmez.
 - **isRepeatable tiklenince** maxRepeatCount gosterilir
-- **Choice'lar foldout ile**: Her choice icinde 4 foldout grubu:
-  1. **Diger Sonuclar** — endsWar, reducesReward, endsWarWithDeal, blocksEvents (alt kosullu alanlarla)
-  2. **Zincir Flagleri** — continuesChain, isChainRefusal, triggersCeasefire
-  3. **Rakip Isgal Flagleri** — acceptsRivalDeal, rejectsRivalDeal
-  4. **On Kosullar** — requiredSkills, statConditions
+- **Choice'lar foldout ile**: Her choice icinde 7 foldout grubu:
+  1. **Modifiers** — supportModifier, suspicionModifier, reputationModifier, politicalInfluenceModifier, costModifier, cornerGrabModifier, protestModifier, olasilikli tepki
+  2. **Diger Sonuclar** — endsWar, reducesReward, endsWarWithDeal, blocksEvents, freezesFeed, hasFeedOverride (alt kosullu alanlarla)
+  3. **Zincir Flagleri** — continuesChain, isChainRefusal, triggersCeasefire
+  4. **Rakip Isgal Flagleri** — acceptsRivalDeal, rejectsRivalDeal
+  5. **Vandalizm Etkisi** — affectsVandalism, vandalismChangeType, vandalismTargetLevel/vandalismLevelDelta (kosullu)
+  6. **On Kosullar** — requiredSkills, statConditions
 
 ---
 
