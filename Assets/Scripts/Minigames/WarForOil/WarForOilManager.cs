@@ -262,24 +262,42 @@ public class WarForOilManager : MonoBehaviour
         }
 
         //toplum tepkisi stat güncelle (sadece tepki aktifse)
-        if (protestActive && !protestSuppressed && choice.protestModifier != 0f)
+        if (protestActive && !protestSuppressed)
         {
-            protestStat = Mathf.Clamp(protestStat + choice.protestModifier, 0f, 100f);
-            protestDriftRate = choice.protestModifier / database.protestDriftDivisor;
-            protestDriftTimer = 0f; //drift timer'ı sıfırla (yeni choice'tan itibaren say)
-            OnProtestStatChanged?.Invoke(protestStat);
+            float effectiveProtestMod = 0f;
 
-            //anında eşik kontrolleri
-            if (protestStat >= database.protestFailThreshold)
+            if (choice.hasProtestChance)
             {
-                if (GameManager.Instance != null)
-                    GameManager.Instance.ResumeGame();
-                ProtestForceCeasefire();
-                return;
+                //olasılık bazlı: zar at, azalma veya artma uygula
+                if (UnityEngine.Random.value < choice.protestDecreaseChance)
+                    effectiveProtestMod = -choice.protestDecreaseAmount;
+                else
+                    effectiveProtestMod = choice.protestIncreaseAmount;
             }
-            if (protestStat < database.protestSuccessThreshold)
+            else
             {
-                SuppressProtest();
+                effectiveProtestMod = choice.protestModifier;
+            }
+
+            if (effectiveProtestMod != 0f)
+            {
+                protestStat = Mathf.Clamp(protestStat + effectiveProtestMod, 0f, 100f);
+                protestDriftRate = effectiveProtestMod / database.protestDriftDivisor;
+                protestDriftTimer = 0f; //drift timer'ı sıfırla (yeni choice'tan itibaren say)
+                OnProtestStatChanged?.Invoke(protestStat);
+
+                //anında eşik kontrolleri
+                if (protestStat >= database.protestFailThreshold)
+                {
+                    if (GameManager.Instance != null)
+                        GameManager.Instance.ResumeGame();
+                    ProtestForceCeasefire();
+                    return;
+                }
+                if (protestStat < database.protestSuccessThreshold)
+                {
+                    SuppressProtest();
+                }
             }
         }
 

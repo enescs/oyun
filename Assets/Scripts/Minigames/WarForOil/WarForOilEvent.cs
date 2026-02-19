@@ -55,6 +55,10 @@ public class WarForOilEventChoice
     public int costModifier; //maliyet etkisi
     public float cornerGrabModifier; //köşe kapma stat'ını etkiler (pozitif = bizim lehimize)
     public float protestModifier; //toplum tepkisi stat'ını etkiler (pozitif = tepki artar, negatif = azalır)
+    public bool hasProtestChance; //true ise protestModifier yerine olasılık bazlı sistem kullanılır
+    [Range(0f, 1f)] public float protestDecreaseChance; //azalma ihtimali (0-1)
+    public float protestDecreaseAmount; //azalma miktarı (pozitif değer, otomatik çıkarılır)
+    public float protestIncreaseAmount; //artma miktarı (pozitif değer, otomatik eklenir)
 
     //feed etkileri
     public bool freezesFeed; //seçilince sosyal medya feed'ini dondurur (SocialMediaManager.TryFreezeFeed)

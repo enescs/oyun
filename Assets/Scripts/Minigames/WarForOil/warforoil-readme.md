@@ -172,6 +172,10 @@ Event icindeki tek bir secenek. Serializable sinif.
 | `costModifier` | Maliyet degisimi (int) |
 | `cornerGrabModifier` | Kose kapma stat degisimi (+ = bizim lehimize, sadece yaris aktifken uygulanir) |
 | `protestModifier` | Toplum tepkisi stat degisimi (+ = tepki artar, - = azalir, sadece tepki aktifken uygulanir). Ayrica sonraki drift hizini belirler. |
+| `hasProtestChance` | true ise protestModifier yerine olasilik bazli sistem kullanilir |
+| `protestDecreaseChance` | Azalma ihtimali (0-1, orn. 0.6 = %60) |
+| `protestDecreaseAmount` | Azalma miktari (pozitif deger, otomatik cikarilir) |
+| `protestIncreaseAmount` | Artma miktari (pozitif deger, otomatik eklenir) |
 | **Diger Sonuclar** (foldout) | |
 | `endsWar` | Bu secenek savasi bitirir mi |
 | `warEndDelay` | Savas kac saniye sonra biter (0 = aninda) |

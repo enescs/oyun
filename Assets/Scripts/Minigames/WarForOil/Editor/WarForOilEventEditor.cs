@@ -164,6 +164,24 @@ public class WarForOilEventEditor : Editor
                 new GUIContent("Köşe Kapma"));
             EditorGUILayout.PropertyField(choice.FindPropertyRelative("protestModifier"),
                 new GUIContent("Toplum Tepkisi"));
+
+            SerializedProperty hasProtestChance = choice.FindPropertyRelative("hasProtestChance");
+            EditorGUILayout.PropertyField(hasProtestChance, new GUIContent("Olasılıklı Tepki"));
+            if (hasProtestChance.boolValue)
+            {
+                EditorGUI.indentLevel++;
+                EditorGUILayout.PropertyField(
+                    choice.FindPropertyRelative("protestDecreaseChance"),
+                    new GUIContent("Azalma İhtimali"));
+                EditorGUILayout.PropertyField(
+                    choice.FindPropertyRelative("protestDecreaseAmount"),
+                    new GUIContent("Azalma Miktarı"));
+                EditorGUILayout.PropertyField(
+                    choice.FindPropertyRelative("protestIncreaseAmount"),
+                    new GUIContent("Artma Miktarı"));
+                EditorGUI.indentLevel--;
+            }
+
             EditorGUI.indentLevel--;
         }
 
@@ -313,6 +331,10 @@ public class WarForOilEventEditor : Editor
         choice.FindPropertyRelative("costModifier").intValue = 0;
         choice.FindPropertyRelative("cornerGrabModifier").floatValue = 0f;
         choice.FindPropertyRelative("protestModifier").floatValue = 0f;
+        choice.FindPropertyRelative("hasProtestChance").boolValue = false;
+        choice.FindPropertyRelative("protestDecreaseChance").floatValue = 0f;
+        choice.FindPropertyRelative("protestDecreaseAmount").floatValue = 0f;
+        choice.FindPropertyRelative("protestIncreaseAmount").floatValue = 0f;
         choice.FindPropertyRelative("endsWar").boolValue = false;
         choice.FindPropertyRelative("warEndDelay").floatValue = 0f;
         choice.FindPropertyRelative("reducesReward").boolValue = false;
