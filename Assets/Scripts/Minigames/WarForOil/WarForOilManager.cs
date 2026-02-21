@@ -1092,6 +1092,13 @@ public class WarForOilManager : MonoBehaviour
         protestActive = false;
         protestDriftRate = 0f;
 
+        //protest bastırıldıysa vandalizm de sona erer
+        if (currentVandalismLevel != VandalismLevel.None && currentVandalismLevel != VandalismLevel.Ended)
+        {
+            currentVandalismLevel = VandalismLevel.Ended;
+            OnVandalismLevelChanged?.Invoke(currentVandalismLevel);
+        }
+
         OnProtestSuppressed?.Invoke();
     }
 

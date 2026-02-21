@@ -11,8 +11,8 @@ public class RandomEventManager : MonoBehaviour
     public int currentGamePhase = 0; //şu anki phase
     public float elapsedTime = 0f; //oyun başladığından beri geçen toplam süre
 
-    public float minEventInterval = 240f; // minimum 4 dakika
-    public float maxEventInterval = 360f; // maximum 6 dakika
+    public float minEventInterval = 45f; // minimum 45 saniye
+    public float maxEventInterval = 75f; // maximum 75 saniye
     private float eventTimer = 0f;
     private float nextEventTime;
 
