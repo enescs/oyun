@@ -4,7 +4,7 @@
 
 Oyuncu, petrol kaynaklari zengin ulkeleri secip hukumetine baski yaparak savas baslatir. Savas surecinde gelen eventlere yanit vererek halk destegini yonetir. Savas sonunda olasilik tabanli bir kontrol yapilir — kazanilirsa ulkenin kaynaklari ele gecirilir, kaybedilirse agir cezalar uygulanir ve **minigame kalici olarak devre disi kalir**.
 
-Savas sirasinda **event zincirleri** (hukumet fonlama krizi gibi), **rakip isgal** (baska bir ulkenin ayni hedefe saldirmasi), **toplum tepkisi** (savas karsiti gosteriler) ve **vandalizm** (pasif gelir urunlerine saldiri) tetiklenebilir.
+Savas sirasinda **event zincirleri** (hukumet fonlama krizi gibi), **rakip isgal** (baska bir ulkenin ayni hedefe saldirmasi), **toplum tepkisi** (savas karsiti gosteriler), **vandalizm** (pasif gelir urunlerine saldiri) ve **medya takibi** (savas karsiti gazetecilerin pesine dusmesi) tetiklenebilir.
 
 ---
 
@@ -114,6 +114,21 @@ Tum minigame ayarlarinin tek noktadan yonetildigi ScriptableObject.
 | `vandalismModerateDamage` | 15 | Moderate seviyede tick basina wealth kaybi |
 | `vandalismHeavyDamage` | 30 | Heavy seviyede tick basina wealth kaybi |
 | `vandalismSevereDamage` | 50 | Severe seviyede tick basina wealth kaybi |
+| **Medya Takibi Ayarlari** | | |
+| `mediaPursuitMinWarTime` | 120 sn | Medya takibinin en erken tetiklenebilecegi savas suresi |
+| `mediaPursuitChance` | 0.2 | Her event check'te medya takibi tetiklenme sansi |
+| `mediaPursuitTriggerEvent` | — | Medya takibi baslangic event'i (trigger) |
+| `initialMediaPursuitLevel` | Low | Otomatik tetiklemede baslangic seviyesi |
+| `mediaPursuitLevel1Events` | — | Low state event havuzu |
+| `mediaPursuitLevel2Events` | — | Medium state event havuzu |
+| `mediaPursuitLevel3Events` | — | High state event havuzu |
+| `mediaPursuitTickInterval` | 5 sn | Periyodik etki tick araligi |
+| `mediaPursuitLowReputationPerTick` | 1 | Low seviyede tick basina itibar kaybi |
+| `mediaPursuitLowSuspicionPerTick` | 0.5 | Low seviyede tick basina suphe artisi |
+| `mediaPursuitMediumReputationPerTick` | 2 | Medium seviyede tick basina itibar kaybi |
+| `mediaPursuitMediumSuspicionPerTick` | 1.5 | Medium seviyede tick basina suphe artisi |
+| `mediaPursuitHighReputationPerTick` | 4 | High seviyede tick basina itibar kaybi |
+| `mediaPursuitHighSuspicionPerTick` | 3 | High seviyede tick basina suphe artisi |
 
 ### WarForOilCountry
 
@@ -152,6 +167,12 @@ Savas sirasinda tetiklenen karar olaylari. Ayni event sinifi normal eventler, zi
 | `skillsToLock` | Zincir bittiginde kilitlenecek skill'ler (sadece Head'de) |
 | `chainFine` | Zincir coktuğunde kesilecek para cezasi (sadece Head'de) |
 | `refusalThresholds` | Support'a gore kac reddetmede zincir coker (sadece Head'de) |
+| **Vandalizm Tetikleme** | |
+| `isVandalismEvent` | Bu event tetiklendiginde vandalizm seviyesi otomatik degisir |
+| `vandalismLevelOnTrigger` | Tetiklendiginde atanacak vandalizm seviyesi |
+| **Medya Takibi Tetikleme** | |
+| `isMediaPursuitEvent` | Bu event tetiklendiginde medya takibi seviyesi otomatik degisir |
+| `mediaPursuitLevelOnTrigger` | Tetiklendiginde atanacak medya takibi seviyesi |
 
 #### ChainRole Enum
 
@@ -192,7 +213,9 @@ Event icindeki tek bir secenek. Serializable sinif.
 | `dealDelay` | Anlasma kac saniye sonra savasi bitirir |
 | `dealRewardRatio` | Normal kazanimin bu orani garanti verilir (0.8 = %80) |
 | `blocksEvents` | Secilirse savas sonuna kadar yeni event gelmez |
+| **Feed Sonuclari** (foldout) | |
 | `freezesFeed` | Secilince sosyal medya feed'ini dondurur (SocialMediaManager.TryFreezeFeed) |
+| `slowsFeed` | Secilince sosyal medya feed'ini yavaslatir (SocialMediaManager.TrySlowFeed) |
 | `hasFeedOverride` | Feed'i Militarizm konusuna yonlendirir (SocialMediaManager.SetEventOverride) |
 | `feedOverrideRatio` | Yonlendirme orani (0-1, orn. 0.8 = %80) |
 | `feedOverrideDuration` | Yonlendirme suresi (saniye) |
@@ -208,6 +231,11 @@ Event icindeki tek bir secenek. Serializable sinif.
 | `vandalismChangeType` | Direct (hedef seviye ata) veya Relative (+/- tik kaydirma) |
 | `vandalismTargetLevel` | Direct modda: hedef VandalismLevel (None/Light/Moderate/Heavy/Severe/Ended) |
 | `vandalismLevelDelta` | Relative modda: seviye degisimi (orn. +2 = 2 tik artir, -1 = 1 tik azalt) |
+| **Medya Takibi Etkisi** (foldout) | |
+| `affectsMediaPursuit` | Bu choice medya takibi seviyesini degistirir mi |
+| `mediaPursuitChangeType` | Direct (hedef seviye ata) veya Relative (+/- tik kaydirma) |
+| `mediaPursuitTargetLevel` | Direct modda: hedef MediaPursuitLevel (None/Low/Medium/High/Ended) |
+| `mediaPursuitLevelDelta` | Relative modda: seviye degisimi (orn. +1 = 1 tik artir, -1 = 1 tik azalt) |
 | **On Kosullar** (foldout) | |
 | `requiredSkills` | Bu secenek icin acilmis olmasi gereken skill'ler |
 | `statConditions` | Bu secenek icin saglanmasi gereken stat kosullari |
@@ -492,6 +520,100 @@ Choice'un "Vandalizm Etkisi" foldout'u acilir:
 
 ---
 
+## Medya Takibi Sistemi
+
+Savas sirasinda savas karsiti gazeteciler oyuncunun pesine dusebilir. Protest'ten bagimsiz olarak sans bazli tetiklenir. 3 aktif seviye (Low/Medium/High) + Ended state var. Her seviyenin kendi event havuzu ve farkli itibar/suphe etkisi vardir. Oyunu direkt bitiren bir state yok — suphe artisi oyunun kendi game over mekanizmasini tetikler (suspicion >= 100).
+
+### MediaPursuitLevel Enum
+
+| Deger | Numerik | Aciklama |
+|-------|---------|----------|
+| `None` | — | Sistem baslamadi |
+| `Low` | 1 | Dusuk baski |
+| `Medium` | 2 | Orta baski |
+| `High` | 3 | Yuksek baski |
+| `Ended` | — | Gazetecilerden kurtulundu |
+
+### Tetikleme
+
+Protest'ten tamamen bagimsiz, kendi `mediaPursuitMinWarTime` (120 sn) ve `mediaPursuitChance` (0.2) degerleri ile tetiklenir.
+- Her event check'te sans kontrolu yapilir
+- Foreshadow yok — direkt `mediaPursuitPending = true` → sonraki cycle `mediaPursuitTriggerEvent` gosterilir
+- `mediaPursuitTriggered` flag ile savas basina 1 kez tetiklenir
+
+### State Bazli Event Havuzu
+
+Database'de 3 ayri liste:
+- `mediaPursuitLevel1Events` — Low state'deyken gelen eventler
+- `mediaPursuitLevel2Events` — Medium state'deyken gelen eventler
+- `mediaPursuitLevel3Events` — High state'deyken gelen eventler
+
+Sadece aktif state'in havuzu event pool'a eklenir. State degisince havuz otomatik degisir.
+
+### State Gecisleri
+
+Vandalizm ile ayni pattern. Iki yolla degisir:
+
+**1. Choice bazli** (`affectsMediaPursuit`):
+- `MediaPursuitChangeType.Direct`: Hedef seviye direkt atanir
+- `MediaPursuitChangeType.Relative`: Mevcut seviye +/- tik kaydirilir (Low=1, Medium=2, High=3)
+- None'dan aktif seviyeye geciste trigger event bekletilir
+
+**2. Event bazli** (`isMediaPursuitEvent`):
+- Event tetiklendiginde (choice'tan once) seviye otomatik degisir
+- Choice seviyeyi tekrar degistirebilir (gayet normal)
+
+### Koruma Kurallari
+
+- Medya takibi None iken Direct None/Ended → hicbir sey yapmaz
+- Medya takibi None iken Relative negatif/sifir → hicbir sey yapmaz
+- Medya takibi None iken aktif seviyeye gecis → trigger event bekletilir
+
+### Periyodik Etki (State bazli tick)
+
+Her `mediaPursuitTickInterval` (5 sn) saniyede aktif state'e gore:
+- Itibar kaybi: `GameStatManager.AddReputation(-reputationPerTick)`
+- Suphe artisi: `GameStatManager.AddSuspicion(suspicionPerTick)`
+
+| Seviye | Itibar Kaybi/Tick | Suphe Artisi/Tick |
+|--------|-------------------|-------------------|
+| Low | 1 | 0.5 |
+| Medium | 2 | 1.5 |
+| High | 4 | 3 |
+
+Suphe 100'e ulasirsa GameStatManager kendi game over'ini tetikler — ek kontrol gerekmez.
+
+### Bitmesi
+
+- Choice ile `Ended`'a cekilir (Direct veya Relative alt sinir)
+- Savas bitince otomatik biter (StartWar reset)
+- Protest bastirilsa bile **bitmez** (bagimsiz sistem)
+
+### Inspector'dan Ayarlama
+
+**Event seviyesinde:**
+1. Inspector'da `Medya Takibi Eventi` tiklenir
+2. `Tetiklenince Seviye` dropdown'dan hedef seviye secilir
+
+**Choice seviyesinde:**
+1. `Medya Takibi Etkisi` foldout'u acilir
+2. `Medya Takibini Etkiler` tiklenir
+3. `Degisim Tipi`: Direct → `Hedef Seviye` dropdown, Relative → `Seviye Degisimi (+/-)` int
+
+### Savas Basi / Sonu
+
+- Savas basladiginda `currentMediaPursuitLevel = None`, `mediaPursuitPending = false`, tick timer sifirlanir
+- Savas sonucunda `finalMediaPursuitLevel` kaydedilir (UI gosterebilir)
+
+### Eventler
+
+| Event | Parametre | Ne Zaman |
+|-------|-----------|----------|
+| `OnMediaPursuitLevelChanged` | MediaPursuitLevel | Medya takibi seviyesi degisti |
+| `OnMediaPursuitTick` | float, float | Medya takibi tick'i (reputationLoss, suspicionGain) |
+
+---
+
 ## Formuller
 
 ### Baski Basari Sansi
@@ -641,6 +763,8 @@ UI'da ayni anda `visibleCountryCount` (varsayilan 3) ulke gosterilir. Her `rotat
 | `OnProtestSuppressed` | — | Toplum tepkisi basariyla bastirildi |
 | `OnVandalismLevelChanged` | VandalismLevel | Vandalizm seviyesi degisti |
 | `OnVandalismDamage` | float | Vandalizm hasar tick'i (miktar) |
+| `OnMediaPursuitLevelChanged` | MediaPursuitLevel | Medya takibi seviyesi degisti |
+| `OnMediaPursuitTick` | float, float | Medya takibi tick'i (reputationLoss, suspicionGain) |
 
 ### Getter'lar
 
@@ -663,6 +787,7 @@ UI'da ayni anda `visibleCountryCount` (varsayilan 3) ulke gosterilir. Her `rotat
 | `IsProtestActive()` | bool | Toplum tepkisi aktif mi |
 | `GetProtestStat()` | float | Toplum tepkisi degeri (0-100) |
 | `GetVandalismLevel()` | VandalismLevel | Mevcut vandalizm seviyesi |
+| `GetMediaPursuitLevel()` | MediaPursuitLevel | Mevcut medya takibi seviyesi |
 
 ---
 
@@ -694,13 +819,15 @@ Zincir basladiginda `EventCoordinator.LockEvents("WarForOilChain")` cagirilir �
 
 - **ChainRole'e gore alan gosterimi**: Head secilince tum zincir config'i (nextChainEvent, chainInterval, skillsToLock, chainFine, refusalThresholds) gosterilir. Link secilince sadece nextChainEvent ve chainInterval gosterilir. None secilince hicbir zincir alani gosterilmez.
 - **isRepeatable tiklenince** maxRepeatCount gosterilir
-- **Choice'lar foldout ile**: Her choice icinde 7 foldout grubu:
+- **Choice'lar foldout ile**: Her choice icinde 9 foldout grubu:
   1. **Modifiers** — supportModifier, suspicionModifier, reputationModifier, politicalInfluenceModifier, costModifier, cornerGrabModifier, protestModifier, olasilikli tepki
-  2. **Diger Sonuclar** — endsWar, reducesReward, endsWarWithDeal, blocksEvents, freezesFeed, hasFeedOverride (alt kosullu alanlarla)
-  3. **Zincir Flagleri** — continuesChain, isChainRefusal, triggersCeasefire
-  4. **Rakip Isgal Flagleri** — acceptsRivalDeal, rejectsRivalDeal
-  5. **Vandalizm Etkisi** — affectsVandalism, vandalismChangeType, vandalismTargetLevel/vandalismLevelDelta (kosullu)
-  6. **On Kosullar** — requiredSkills, statConditions
+  2. **Diger Sonuclar** — endsWar, reducesReward, endsWarWithDeal, blocksEvents
+  3. **Feed Sonuclari** — freezesFeed, slowsFeed, hasFeedOverride (alt kosullu alanlarla)
+  4. **Zincir Flagleri** — continuesChain, isChainRefusal, triggersCeasefire
+  5. **Rakip Isgal Flagleri** — acceptsRivalDeal, rejectsRivalDeal
+  6. **Vandalizm Etkisi** — affectsVandalism, vandalismChangeType, vandalismTargetLevel/vandalismLevelDelta (kosullu)
+  7. **Medya Takibi Etkisi** — affectsMediaPursuit, mediaPursuitChangeType, mediaPursuitTargetLevel/mediaPursuitLevelDelta (kosullu)
+  8. **On Kosullar** — requiredSkills, statConditions
 
 ---
 
@@ -745,6 +872,17 @@ Zincir basladiginda `EventCoordinator.LockEvents("WarForOilChain")` cagirilir �
 6. Pasif drift: her 3 saniyede son modifier / 10 kadar stat kayar (+3 choice → +0.3/tick, -5 choice → -0.5/tick)
 7. **Basarisizlik**: protestStat >= 80 → otomatik ateskes (`wasProtestCeasefire = true`)
 8. **Basari**: protestStat < 10 → tepki bastirildi, protest eventleri durur, savas normal devam eder
+
+### Medya Takibi Akisi
+
+1. Savas 120+ saniye surdukten sonra %20 ihtimalle medya takibi tetiklenir (protest'ten bagimsiz)
+2. `mediaPursuitPending = true` → sonraki event check'te `mediaPursuitTriggerEvent` gosterilir
+3. `currentMediaPursuitLevel` atanir (varsayilan Low), periyodik itibar kaybi + suphe artisi baslar
+4. Aktif state'in event havuzu normal havuza eklenir (Low → level1Events, Medium → level2Events, High → level3Events)
+5. Oyuncu choice'larla veya event tetikleme ile medya takibi seviyesini degistirir
+6. High seviyede tick basi 4 itibar kaybi + 3 suphe artisi → suphe 100'e ulasirsa game over
+7. **Kurtulma**: Choice ile `Ended`'a cekilir
+8. **Savas biterse**: Otomatik sifirlanir
 
 ---
 

@@ -68,6 +68,13 @@ public class WarForOilManager : MonoBehaviour
     private VandalismLevel currentVandalismLevel = VandalismLevel.None;
     private float vandalismDamageTimer;
 
+    //medya takibi sistemi
+    private bool mediaPursuitPending; //trigger event bekliyor
+    private bool mediaPursuitTriggered; //bu savaşta medya takibi zaten tetiklendi mi
+    private MediaPursuitLevel pendingMediaPursuitLevel; //trigger sonrası atanacak seviye
+    private MediaPursuitLevel currentMediaPursuitLevel = MediaPursuitLevel.None;
+    private float mediaPursuitTickTimer;
+
     //sonuç ekranı beklerken saklanan sonuç
     private WarForOilResult pendingResult;
 
@@ -107,6 +114,8 @@ public class WarForOilManager : MonoBehaviour
     public static event Action OnProtestSuppressed; //toplum tepkisi başarıyla bastırıldı
     public static event Action<VandalismLevel> OnVandalismLevelChanged; //vandalizm seviyesi değişti
     public static event Action<float> OnVandalismDamage; //vandalizm hasar tick'i (UI animasyon için)
+    public static event Action<MediaPursuitLevel> OnMediaPursuitLevelChanged; //medya takibi seviyesi değişti
+    public static event Action<float, float> OnMediaPursuitTick; //medya takibi tick'i (reputationLoss, suspicionGain)
 
     void Start()
     {
@@ -317,6 +326,9 @@ public class WarForOilManager : MonoBehaviour
         //vandalizm seviyesi güncelle
         ApplyVandalismChange(choice);
 
+        //medya takibi seviyesi güncelle
+        ApplyMediaPursuitChange(choice);
+
         WarForOilEvent resolvedEvent = currentEvent;
         OnWarEventResolved?.Invoke(choice);
 
@@ -454,6 +466,7 @@ public class WarForOilManager : MonoBehaviour
         pendingResult.wasCeasefire = true;
         pendingResult.finalSupportStat = supportStat;
         pendingResult.finalVandalismLevel = currentVandalismLevel;
+        pendingResult.finalMediaPursuitLevel = currentMediaPursuitLevel;
         pendingResult.winChance = 0f;
         pendingResult.wealthChange = wealthChange;
         pendingResult.suspicionChange = accumulatedSuspicionModifier;
@@ -680,6 +693,24 @@ public class WarForOilManager : MonoBehaviour
             }
         }
 
+        //medya takibi periyodik etkisi (itibar kaybı + şüphe artışı)
+        if (currentMediaPursuitLevel != MediaPursuitLevel.None && currentMediaPursuitLevel != MediaPursuitLevel.Ended)
+        {
+            mediaPursuitTickTimer += Time.deltaTime;
+            if (mediaPursuitTickTimer >= database.mediaPursuitTickInterval)
+            {
+                mediaPursuitTickTimer = 0f;
+                float repLoss = GetMediaPursuitReputationPerTick(currentMediaPursuitLevel);
+                float susGain = GetMediaPursuitSuspicionPerTick(currentMediaPursuitLevel);
+                if (GameStatManager.Instance != null)
+                {
+                    if (repLoss > 0f) GameStatManager.Instance.AddReputation(-repLoss);
+                    if (susGain > 0f) GameStatManager.Instance.AddSuspicion(susGain);
+                }
+                OnMediaPursuitTick?.Invoke(repLoss, susGain);
+            }
+        }
+
         //event kontrol
         eventCheckTimer += Time.deltaTime;
         if (eventCheckTimer >= database.eventInterval)
@@ -775,6 +806,8 @@ public class WarForOilManager : MonoBehaviour
         if (GameManager.Instance != null)
             GameManager.Instance.PauseGame();
 
+        ApplyEventVandalismOnTrigger(chainEvent);
+        ApplyEventMediaPursuitOnTrigger(chainEvent);
         OnWarEventTriggered?.Invoke(chainEvent);
     }
 
@@ -886,6 +919,7 @@ public class WarForOilManager : MonoBehaviour
             pendingResult.wasCeasefire = true;
             pendingResult.finalSupportStat = supportStat;
             pendingResult.finalVandalismLevel = currentVandalismLevel;
+            pendingResult.finalMediaPursuitLevel = currentMediaPursuitLevel;
             pendingResult.winChance = 0f;
             pendingResult.wealthChange = wealthChange;
             pendingResult.suspicionChange = accumulatedSuspicionModifier;
@@ -906,6 +940,7 @@ public class WarForOilManager : MonoBehaviour
             pendingResult.wasChainCollapse = true;
             pendingResult.finalSupportStat = supportStat;
             pendingResult.finalVandalismLevel = currentVandalismLevel;
+            pendingResult.finalMediaPursuitLevel = currentMediaPursuitLevel;
             pendingResult.winChance = 0f;
             pendingResult.wealthChange = -(database.warLossPenalty + accumulatedCostModifier);
             pendingResult.suspicionChange = database.warLossSuspicionIncrease + accumulatedSuspicionModifier;
@@ -1044,6 +1079,8 @@ public class WarForOilManager : MonoBehaviour
         if (GameManager.Instance != null)
             GameManager.Instance.PauseGame();
 
+        ApplyEventVandalismOnTrigger(currentEvent);
+        ApplyEventMediaPursuitOnTrigger(currentEvent);
         OnWarEventTriggered?.Invoke(currentEvent);
     }
 
@@ -1070,7 +1107,32 @@ public class WarForOilManager : MonoBehaviour
         if (GameManager.Instance != null)
             GameManager.Instance.PauseGame();
 
+        ApplyEventVandalismOnTrigger(currentEvent);
+        ApplyEventMediaPursuitOnTrigger(currentEvent);
         OnWarEventTriggered?.Invoke(currentEvent);
+    }
+
+    /// <summary>
+    /// Event tetiklendiğinde vandalizm seviyesini otomatik uygular (isVandalismEvent ise).
+    /// Her event gösterilmeden hemen önce çağrılmalı.
+    /// </summary>
+    private void ApplyEventVandalismOnTrigger(WarForOilEvent evt)
+    {
+        if (evt == null || !evt.isVandalismEvent) return;
+
+        VandalismLevel targetLevel = evt.vandalismLevelOnTrigger;
+        if (targetLevel == currentVandalismLevel) return;
+
+        //None'dan aktif seviyeye geçişte vandalismTriggered'ı set et
+        if (currentVandalismLevel == VandalismLevel.None
+            && targetLevel != VandalismLevel.None && targetLevel != VandalismLevel.Ended)
+        {
+            vandalismTriggered = true;
+        }
+
+        currentVandalismLevel = targetLevel;
+        vandalismDamageTimer = 0f;
+        OnVandalismLevelChanged?.Invoke(currentVandalismLevel);
     }
 
     /// <summary>
@@ -1101,6 +1163,7 @@ public class WarForOilManager : MonoBehaviour
         pendingResult.finalSupportStat = supportStat;
         pendingResult.finalProtestStat = protestStat;
         pendingResult.finalVandalismLevel = currentVandalismLevel;
+        pendingResult.finalMediaPursuitLevel = currentMediaPursuitLevel;
         pendingResult.winChance = 0f;
         pendingResult.wealthChange = wealthChange;
         pendingResult.suspicionChange = accumulatedSuspicionModifier;
@@ -1267,6 +1330,198 @@ public class WarForOilManager : MonoBehaviour
         return currentVandalismLevel;
     }
 
+    // ==================== MEDYA TAKİBİ SİSTEMİ ====================
+
+    /// <summary>
+    /// Medya takibini aktif eder ve başlangıç event'ini gösterir.
+    /// </summary>
+    private void ActivateMediaPursuit()
+    {
+        //bekleyen seviyeyi uygula
+        currentMediaPursuitLevel = pendingMediaPursuitLevel;
+        mediaPursuitTickTimer = 0f;
+
+        OnMediaPursuitLevelChanged?.Invoke(currentMediaPursuitLevel);
+
+        //başlangıç event'ini göster
+        if (!EventCoordinator.CanShowEvent()) return;
+
+        EventCoordinator.MarkEventShown();
+
+        currentEvent = database.mediaPursuitTriggerEvent;
+        currentState = WarForOilState.EventPhase;
+        eventDecisionTimer = currentEvent.decisionTime;
+
+        if (GameManager.Instance != null)
+            GameManager.Instance.PauseGame();
+
+        ApplyEventVandalismOnTrigger(currentEvent);
+        ApplyEventMediaPursuitOnTrigger(currentEvent);
+        OnWarEventTriggered?.Invoke(currentEvent);
+    }
+
+    /// <summary>
+    /// Choice'un medya takibi etkisini uygular.
+    /// </summary>
+    private void ApplyMediaPursuitChange(WarForOilEventChoice choice)
+    {
+        if (!choice.affectsMediaPursuit) return;
+
+        MediaPursuitLevel newLevel;
+
+        if (choice.mediaPursuitChangeType == MediaPursuitChangeType.Direct)
+        {
+            //medya takibi hiç başlamamışsa ve hedef None veya Ended ise bir şey yapma
+            if (currentMediaPursuitLevel == MediaPursuitLevel.None
+                && (choice.mediaPursuitTargetLevel == MediaPursuitLevel.None || choice.mediaPursuitTargetLevel == MediaPursuitLevel.Ended))
+                return;
+
+            newLevel = choice.mediaPursuitTargetLevel;
+        }
+        else
+        {
+            //medya takibi hiç başlamamışsa sadece yükseltici delta'ya izin ver
+            if (currentMediaPursuitLevel == MediaPursuitLevel.None)
+            {
+                if (choice.mediaPursuitLevelDelta <= 0) return;
+                //None'dan başlatılıyorsa delta direkt seviye olur
+                newLevel = IntToMediaPursuitLevel(Mathf.Clamp(choice.mediaPursuitLevelDelta, 1, 3));
+            }
+            else
+            {
+                //göreceli değişim: mevcut seviyeyi sayısal olarak kaydır
+                int currentNumeric = MediaPursuitLevelToInt(currentMediaPursuitLevel);
+                int result = currentNumeric + choice.mediaPursuitLevelDelta;
+
+                if (result < 1)
+                    newLevel = MediaPursuitLevel.Ended; //alt sınırın altı → bitti
+                else if (result > 3)
+                    newLevel = MediaPursuitLevel.High; //üst sınır → high'da kal
+                else
+                    newLevel = IntToMediaPursuitLevel(result);
+            }
+        }
+
+        //medya takibi henüz başlamamışsa ve aktif seviyeye geçecekse → trigger event beklet
+        if (currentMediaPursuitLevel == MediaPursuitLevel.None
+            && newLevel != MediaPursuitLevel.None && newLevel != MediaPursuitLevel.Ended
+            && database.mediaPursuitTriggerEvent != null)
+        {
+            mediaPursuitPending = true;
+            mediaPursuitTriggered = true;
+            pendingMediaPursuitLevel = newLevel;
+            return;
+        }
+
+        if (newLevel != currentMediaPursuitLevel)
+        {
+            currentMediaPursuitLevel = newLevel;
+            mediaPursuitTickTimer = 0f; //seviye değişince timer sıfırla
+            OnMediaPursuitLevelChanged?.Invoke(currentMediaPursuitLevel);
+        }
+    }
+
+    /// <summary>
+    /// Event tetiklendiğinde medya takibi seviyesini otomatik uygular (isMediaPursuitEvent ise).
+    /// Her event gösterilmeden hemen önce çağrılmalı.
+    /// </summary>
+    private void ApplyEventMediaPursuitOnTrigger(WarForOilEvent evt)
+    {
+        if (evt == null || !evt.isMediaPursuitEvent) return;
+
+        MediaPursuitLevel targetLevel = evt.mediaPursuitLevelOnTrigger;
+        if (targetLevel == currentMediaPursuitLevel) return;
+
+        //None'dan aktif seviyeye geçişte mediaPursuitTriggered'ı set et
+        if (currentMediaPursuitLevel == MediaPursuitLevel.None
+            && targetLevel != MediaPursuitLevel.None && targetLevel != MediaPursuitLevel.Ended)
+        {
+            mediaPursuitTriggered = true;
+        }
+
+        currentMediaPursuitLevel = targetLevel;
+        mediaPursuitTickTimer = 0f;
+        OnMediaPursuitLevelChanged?.Invoke(currentMediaPursuitLevel);
+    }
+
+    /// <summary>
+    /// Aktif medya takibi state'ine göre doğru event havuzunu döner.
+    /// </summary>
+    private List<WarForOilEvent> GetMediaPursuitEvents()
+    {
+        switch (currentMediaPursuitLevel)
+        {
+            case MediaPursuitLevel.Low: return database.mediaPursuitLevel1Events;
+            case MediaPursuitLevel.Medium: return database.mediaPursuitLevel2Events;
+            case MediaPursuitLevel.High: return database.mediaPursuitLevel3Events;
+            default: return null;
+        }
+    }
+
+    /// <summary>
+    /// Medya takibi seviyesine göre tick başına itibar kaybını döner.
+    /// </summary>
+    private float GetMediaPursuitReputationPerTick(MediaPursuitLevel level)
+    {
+        switch (level)
+        {
+            case MediaPursuitLevel.Low: return database.mediaPursuitLowReputationPerTick;
+            case MediaPursuitLevel.Medium: return database.mediaPursuitMediumReputationPerTick;
+            case MediaPursuitLevel.High: return database.mediaPursuitHighReputationPerTick;
+            default: return 0f;
+        }
+    }
+
+    /// <summary>
+    /// Medya takibi seviyesine göre tick başına şüphe artışını döner.
+    /// </summary>
+    private float GetMediaPursuitSuspicionPerTick(MediaPursuitLevel level)
+    {
+        switch (level)
+        {
+            case MediaPursuitLevel.Low: return database.mediaPursuitLowSuspicionPerTick;
+            case MediaPursuitLevel.Medium: return database.mediaPursuitMediumSuspicionPerTick;
+            case MediaPursuitLevel.High: return database.mediaPursuitHighSuspicionPerTick;
+            default: return 0f;
+        }
+    }
+
+    /// <summary>
+    /// MediaPursuitLevel → sayısal değer (Low=1, Medium=2, High=3). None/Ended → 0.
+    /// </summary>
+    private int MediaPursuitLevelToInt(MediaPursuitLevel level)
+    {
+        switch (level)
+        {
+            case MediaPursuitLevel.Low: return 1;
+            case MediaPursuitLevel.Medium: return 2;
+            case MediaPursuitLevel.High: return 3;
+            default: return 0;
+        }
+    }
+
+    /// <summary>
+    /// Sayısal değer → MediaPursuitLevel (1=Low, 2=Medium, 3=High).
+    /// </summary>
+    private MediaPursuitLevel IntToMediaPursuitLevel(int value)
+    {
+        switch (value)
+        {
+            case 1: return MediaPursuitLevel.Low;
+            case 2: return MediaPursuitLevel.Medium;
+            case 3: return MediaPursuitLevel.High;
+            default: return MediaPursuitLevel.None;
+        }
+    }
+
+    /// <summary>
+    /// Mevcut medya takibi seviyesini döner.
+    /// </summary>
+    public MediaPursuitLevel GetMediaPursuitLevel()
+    {
+        return currentMediaPursuitLevel;
+    }
+
     // ==================== İÇ MANTIK ====================
 
     /// <summary>
@@ -1309,6 +1564,11 @@ public class WarForOilManager : MonoBehaviour
         pendingVandalismLevel = VandalismLevel.None;
         currentVandalismLevel = VandalismLevel.None;
         vandalismDamageTimer = 0f;
+        mediaPursuitPending = false;
+        mediaPursuitTriggered = false;
+        pendingMediaPursuitLevel = MediaPursuitLevel.None;
+        currentMediaPursuitLevel = MediaPursuitLevel.None;
+        mediaPursuitTickTimer = 0f;
 
         OnWarStarted?.Invoke(selectedCountry, database.warDuration);
     }
@@ -1335,6 +1595,14 @@ public class WarForOilManager : MonoBehaviour
         {
             vandalismPending = false;
             ActivateVandalism();
+            return;
+        }
+
+        //medya takibi trigger: bekleyen medya takibi event'ini göster
+        if (mediaPursuitPending)
+        {
+            mediaPursuitPending = false;
+            ActivateMediaPursuit();
             return;
         }
 
@@ -1378,6 +1646,20 @@ public class WarForOilManager : MonoBehaviour
             }
         }
 
+        //medya takibi otomatik tetikleme: şans bazlı, protest'ten bağımsız
+        if (!mediaPursuitTriggered && !isInChain
+            && warTimer >= database.mediaPursuitMinWarTime
+            && database.mediaPursuitTriggerEvent != null)
+        {
+            if (UnityEngine.Random.value < database.mediaPursuitChance)
+            {
+                mediaPursuitPending = true;
+                mediaPursuitTriggered = true;
+                pendingMediaPursuitLevel = database.initialMediaPursuitLevel;
+                return; //bu cycle'ı tüket
+            }
+        }
+
         //aktif event havuzunu belirle
         List<WarForOilEvent> eventPool = isCornerGrabRace ? database.cornerGrabEvents : database.events;
 
@@ -1414,6 +1696,23 @@ public class WarForOilManager : MonoBehaviour
             }
         }
 
+        //medya takibi aktifse ilgili state havuzundan da eventler ekle
+        List<WarForOilEvent> mediaPursuitPool = GetMediaPursuitEvents();
+        if (mediaPursuitPool != null)
+        {
+            for (int i = 0; i < mediaPursuitPool.Count; i++)
+            {
+                WarForOilEvent evt = mediaPursuitPool[i];
+                if (warTimer < evt.minWarTime) continue;
+
+                eventTriggerCounts.TryGetValue(evt, out int count);
+                if (count == 0)
+                    available.Add(evt);
+                else if (evt.isRepeatable && count <= evt.maxRepeatCount)
+                    available.Add(evt);
+            }
+        }
+
         if (available.Count == 0) return;
 
         //EventCoordinator cooldown kontrolü
@@ -1435,6 +1734,8 @@ public class WarForOilManager : MonoBehaviour
         if (GameManager.Instance != null)
             GameManager.Instance.PauseGame();
 
+        ApplyEventVandalismOnTrigger(currentEvent);
+        ApplyEventMediaPursuitOnTrigger(currentEvent);
         OnWarEventTriggered?.Invoke(currentEvent);
     }
 
@@ -1474,6 +1775,8 @@ public class WarForOilManager : MonoBehaviour
             GameManager.Instance.PauseGame();
 
         OnRivalInvasionStarted?.Invoke(rivalCountry);
+        ApplyEventVandalismOnTrigger(currentEvent);
+        ApplyEventMediaPursuitOnTrigger(currentEvent);
         OnWarEventTriggered?.Invoke(currentEvent);
     }
 
@@ -1496,6 +1799,7 @@ public class WarForOilManager : MonoBehaviour
             pendingResult.wasDeal = true;
             pendingResult.finalSupportStat = supportStat;
             pendingResult.finalVandalismLevel = currentVandalismLevel;
+            pendingResult.finalMediaPursuitLevel = currentMediaPursuitLevel;
             pendingResult.winChance = 1f;
             pendingResult.wealthChange = dealReward - accumulatedCostModifier;
             pendingResult.suspicionChange = accumulatedSuspicionModifier;
@@ -1520,6 +1824,7 @@ public class WarForOilManager : MonoBehaviour
             pendingResult.warWon = warWon;
             pendingResult.finalSupportStat = supportStat;
             pendingResult.finalVandalismLevel = currentVandalismLevel;
+            pendingResult.finalMediaPursuitLevel = currentMediaPursuitLevel;
             pendingResult.winChance = winChance;
 
             if (warWon)
@@ -1680,6 +1985,7 @@ public class WarForOilResult
     public float finalSupportStat;
     public float finalProtestStat; //toplum tepkisi son değeri (aktifse)
     public VandalismLevel finalVandalismLevel; //savaş sonu vandalizm seviyesi
+    public MediaPursuitLevel finalMediaPursuitLevel; //savaş sonu medya takibi seviyesi
     public float winChance; //hesaplanan kazanma şansı
     public float wealthChange;
     public float suspicionChange;

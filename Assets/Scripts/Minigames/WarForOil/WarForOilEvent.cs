@@ -18,6 +18,14 @@ public class WarForOilEvent : ScriptableObject
     public List<WarForOilEventChoice> choices;
     public int defaultChoiceIndex = -1; //süre dolunca otomatik seçilecek seçenek (-1 = ilk seçenek)
 
+    [Header("Vandalizm Tetikleme")]
+    public bool isVandalismEvent; //bu event tetiklendiğinde vandalizm seviyesi otomatik değişir
+    public VandalismLevel vandalismLevelOnTrigger; //tetiklendiğinde atanacak vandalizm seviyesi
+
+    [Header("Medya Takibi Tetikleme")]
+    public bool isMediaPursuitEvent; //bu event tetiklendiğinde medya takibi seviyesi otomatik değişir
+    public MediaPursuitLevel mediaPursuitLevelOnTrigger; //tetiklendiğinde atanacak medya takibi seviyesi
+
     [Header("Zincir Ayarları")]
     public ChainRole chainRole = ChainRole.None; //bu event zincirde mi, rolü ne
     public WarForOilEvent nextChainEvent; //sonraki zincir eventi (null = zincirin sonu)
@@ -92,6 +100,12 @@ public class WarForOilEventChoice
     public VandalismLevel vandalismTargetLevel; //direkt atama: hedef seviye
     public int vandalismLevelDelta; //göreceli değişim: +/- tık (Light=1, Moderate=2, Heavy=3, Severe=4)
 
+    //medya takibi etkileri (Editor tarafından foldout içinde çizilir)
+    public bool affectsMediaPursuit; //bu choice medya takibi seviyesini değiştirir mi
+    public MediaPursuitChangeType mediaPursuitChangeType; //direkt atama mı göreceli mi
+    public MediaPursuitLevel mediaPursuitTargetLevel; //direkt atama: hedef seviye
+    public int mediaPursuitLevelDelta; //göreceli değişim: +/- tık (Low=1, Medium=2, High=3)
+
     //ön koşullar (Editor tarafından foldout içinde çizilir)
     public List<Skill> requiredSkills; //bu seçenek için açılmış olması gereken skill'ler
     public List<StatCondition> statConditions; //bu seçenek için sağlanması gereken stat koşulları
@@ -157,6 +171,24 @@ public enum VandalismLevel
 }
 
 public enum VandalismChangeType
+{
+    Direct,     //direkt belirli bir seviyeye ata
+    Relative    //mevcut seviyeyi +/- kaydır
+}
+
+/// <summary>
+/// Medya takibi seviyesi. Low(1)-High(3) aktif seviyeler, altına düşerse Ended olur.
+/// </summary>
+public enum MediaPursuitLevel
+{
+    None,       //medya takibi yok (başlamadı)
+    Low,        //düşük baskı (1)
+    Medium,     //orta baskı (2)
+    High,       //yüksek baskı (3)
+    Ended       //medya takibi bitti/atlatıldı
+}
+
+public enum MediaPursuitChangeType
 {
     Direct,     //direkt belirli bir seviyeye ata
     Relative    //mevcut seviyeyi +/- kaydır

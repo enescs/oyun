@@ -12,6 +12,7 @@ public class WarForOilEventEditor : Editor
     private Dictionary<int, bool> chainChoiceFoldouts = new Dictionary<int, bool>();
     private Dictionary<int, bool> rivalFoldouts = new Dictionary<int, bool>();
     private Dictionary<int, bool> vandalismFoldouts = new Dictionary<int, bool>();
+    private Dictionary<int, bool> mediaPursuitFoldouts = new Dictionary<int, bool>();
     private Dictionary<int, bool> feedFoldouts = new Dictionary<int, bool>();
     private bool chainFoldout;
 
@@ -22,6 +23,8 @@ public class WarForOilEventEditor : Editor
         //choices, maxRepeatCount, defaultChoiceIndex ve zincir alanları hariç tüm alanları çiz
         DrawPropertiesExcluding(serializedObject,
             "choices", "maxRepeatCount", "defaultChoiceIndex",
+            "isVandalismEvent", "vandalismLevelOnTrigger",
+            "isMediaPursuitEvent", "mediaPursuitLevelOnTrigger",
             "chainRole", "nextChainEvent", "chainInterval", "skillsToLock", "chainFine", "refusalThresholds");
 
         //isRepeatable açıksa maxRepeatCount'u göster
@@ -82,6 +85,34 @@ public class WarForOilEventEditor : Editor
             EditorGUI.indentLevel--;
         }
         //None → hiçbir zincir alanı gösterilmez
+
+        EditorGUILayout.Space();
+
+        //vandalizm tetikleme
+        SerializedProperty isVandalismEvent = serializedObject.FindProperty("isVandalismEvent");
+        EditorGUILayout.PropertyField(isVandalismEvent, new GUIContent("Vandalizm Eventi"));
+        if (isVandalismEvent.boolValue)
+        {
+            EditorGUI.indentLevel++;
+            EditorGUILayout.PropertyField(
+                serializedObject.FindProperty("vandalismLevelOnTrigger"),
+                new GUIContent("Tetiklenince Seviye"));
+            EditorGUI.indentLevel--;
+        }
+
+        EditorGUILayout.Space();
+
+        //medya takibi tetikleme
+        SerializedProperty isMediaPursuitEvent = serializedObject.FindProperty("isMediaPursuitEvent");
+        EditorGUILayout.PropertyField(isMediaPursuitEvent, new GUIContent("Medya Takibi Eventi"));
+        if (isMediaPursuitEvent.boolValue)
+        {
+            EditorGUI.indentLevel++;
+            EditorGUILayout.PropertyField(
+                serializedObject.FindProperty("mediaPursuitLevelOnTrigger"),
+                new GUIContent("Tetiklenince Seviye"));
+            EditorGUI.indentLevel--;
+        }
 
         EditorGUILayout.Space();
 
@@ -361,6 +392,45 @@ public class WarForOilEventEditor : Editor
 
         EditorGUILayout.Space(2);
 
+        //medya takibi etkileri — foldout
+        if (!mediaPursuitFoldouts.ContainsKey(index))
+            mediaPursuitFoldouts[index] = false;
+        mediaPursuitFoldouts[index] = EditorGUILayout.Foldout(
+            mediaPursuitFoldouts[index], "Medya Takibi Etkisi", true);
+
+        if (mediaPursuitFoldouts[index])
+        {
+            EditorGUI.indentLevel++;
+
+            SerializedProperty affectsMediaPursuit = choice.FindPropertyRelative("affectsMediaPursuit");
+            EditorGUILayout.PropertyField(affectsMediaPursuit, new GUIContent("Medya Takibini Etkiler"));
+
+            if (affectsMediaPursuit.boolValue)
+            {
+                SerializedProperty mpChangeType = choice.FindPropertyRelative("mediaPursuitChangeType");
+                EditorGUILayout.PropertyField(mpChangeType, new GUIContent("Değişim Tipi"));
+
+                EditorGUI.indentLevel++;
+                if ((MediaPursuitChangeType)mpChangeType.enumValueIndex == MediaPursuitChangeType.Direct)
+                {
+                    EditorGUILayout.PropertyField(
+                        choice.FindPropertyRelative("mediaPursuitTargetLevel"),
+                        new GUIContent("Hedef Seviye"));
+                }
+                else
+                {
+                    EditorGUILayout.PropertyField(
+                        choice.FindPropertyRelative("mediaPursuitLevelDelta"),
+                        new GUIContent("Seviye Değişimi (+/-)"));
+                }
+                EditorGUI.indentLevel--;
+            }
+
+            EditorGUI.indentLevel--;
+        }
+
+        EditorGUILayout.Space(2);
+
         //ön koşullar — foldout
         if (!prerequisiteFoldouts.ContainsKey(index))
             prerequisiteFoldouts[index] = false;
@@ -416,6 +486,10 @@ public class WarForOilEventEditor : Editor
         choice.FindPropertyRelative("vandalismChangeType").enumValueIndex = 0;
         choice.FindPropertyRelative("vandalismTargetLevel").enumValueIndex = 0;
         choice.FindPropertyRelative("vandalismLevelDelta").intValue = 0;
+        choice.FindPropertyRelative("affectsMediaPursuit").boolValue = false;
+        choice.FindPropertyRelative("mediaPursuitChangeType").enumValueIndex = 0;
+        choice.FindPropertyRelative("mediaPursuitTargetLevel").enumValueIndex = 0;
+        choice.FindPropertyRelative("mediaPursuitLevelDelta").intValue = 0;
         choice.FindPropertyRelative("requiredSkills").ClearArray();
         choice.FindPropertyRelative("statConditions").ClearArray();
     }

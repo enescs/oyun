@@ -69,4 +69,23 @@ public class WarForOilDatabase : ScriptableObject
     public float vandalismModerateDamage = 15f; //orta seviyede tick başına wealth kaybı
     public float vandalismHeavyDamage = 30f; //ağır seviyede tick başına wealth kaybı
     public float vandalismSevereDamage = 50f; //şiddetli seviyede tick başına wealth kaybı
+
+    [Header("Medya Takibi Ayarları")]
+    public float mediaPursuitMinWarTime = 120f; //medya takibinin en erken tetiklenebileceği savaş süresi (saniye)
+    [Range(0f, 1f)] public float mediaPursuitChance = 0.2f; //her event check'te medya takibi tetiklenme şansı
+    public WarForOilEvent mediaPursuitTriggerEvent; //medya takibi başlangıç event'i
+    public MediaPursuitLevel initialMediaPursuitLevel = MediaPursuitLevel.Low; //otomatik tetiklemede başlangıç seviyesi
+    public List<WarForOilEvent> mediaPursuitLevel1Events; //Low state event havuzu
+    public List<WarForOilEvent> mediaPursuitLevel2Events; //Medium state event havuzu
+    public List<WarForOilEvent> mediaPursuitLevel3Events; //High state event havuzu
+    public float mediaPursuitTickInterval = 5f; //periyodik etki tick aralığı (saniye)
+    //Low seviye etkileri
+    public float mediaPursuitLowReputationPerTick = 1f; //tick başına itibar kaybı
+    public float mediaPursuitLowSuspicionPerTick = 0.5f; //tick başına şüphe artışı
+    //Medium seviye etkileri
+    public float mediaPursuitMediumReputationPerTick = 2f;
+    public float mediaPursuitMediumSuspicionPerTick = 1.5f;
+    //High seviye etkileri
+    public float mediaPursuitHighReputationPerTick = 4f;
+    public float mediaPursuitHighSuspicionPerTick = 3f;
 }
