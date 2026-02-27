@@ -139,6 +139,7 @@ public class MapGenerator : MonoBehaviour
 
         mapTexture = CreateTexture();
         ApplyTexture();
+        
     }
 
     List<Vector2> GenerateDetailedPolygon(Vector2 center, float radius, float stretchX, float stretchY, float rotation)
@@ -677,5 +678,20 @@ public class MapGenerator : MonoBehaviour
     {
         width = Mathf.Max(64, width);
         height = Mathf.Max(64, height);
+    }
+    
+    // Add to MapGenerator.cs
+    public int[,] GetBiomeMapCopy()
+    {
+        int[,] copy = new int[width, height];
+        System.Array.Copy(biomeMap, copy, biomeMap.Length);
+        return copy;
+    }
+
+    public bool[,] GetLandMapCopy()
+    {
+        bool[,] copy = new bool[width, height];
+        System.Array.Copy(landMap, copy, landMap.Length);
+        return copy;
     }
 }

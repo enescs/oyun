@@ -1,0 +1,31 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 80544689232b37745b9861d9ea0767c1, type: 3}
+  m_Name: BiomePaintSettings
+  m_EditorClassIdentifier: Assembly-CSharp::BiomePaintSettings
+  waterDeep: {r: 0.05, g: 0.18, b: 0.52, a: 1}
+  waterShallow: {r: 0.12, g: 0.42, b: 0.72, a: 1}
+  fogColor: {r: 0.7, g: 0.74, b: 0.8, a: 1}
+  forestDark: {r: 0.1, g: 0.38, b: 0.08, a: 1}
+  forestLight: {r: 0.28, g: 0.62, b: 0.18, a: 1}
+  desertShadow: {r: 0.6, g: 0.46, b: 0.22, a: 1}
+  desertHighlight: {r: 0.85, g: 0.74, b: 0.42, a: 1}
+  desertCrack: {r: 0.35, g: 0.24, b: 0.1, a: 1}
+  mountainDark: {r: 0.22, g: 0.22, b: 0.24, a: 1}
+  mountainLight: {r: 0.52, g: 0.52, b: 0.54, a: 1}
+  mountainRidge: {r: 0.85, g: 0.84, b: 0.8, a: 1}
+  plainsDark: {r: 0.22, g: 0.55, b: 0.28, a: 1}
+  plainsLight: {r: 0.45, g: 0.75, b: 0.38, a: 1}
+  forestDecor: []
+  desertDecor: []
+  mountainDecor: []
+  plainsDecor: []
