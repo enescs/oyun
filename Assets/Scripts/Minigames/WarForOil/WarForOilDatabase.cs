@@ -62,6 +62,8 @@ public class WarForOilDatabase : ScriptableObject
 
     [Header("Vandalizm Ayarları")]
     public WarForOilEvent vandalismTriggerEvent; //vandalizm başlangıç event'i
+    [Range(0f, 1f)] public float vandalismChance = 0.2f; //protest aktifken her event check'te vandalizm tetiklenme şansı
+    public VandalismLevel initialVandalismLevel = VandalismLevel.Light; //otomatik tetiklemede başlangıç seviyesi
     public float vandalismDamageInterval = 5f; //hasar tick aralığı (saniye)
     public float vandalismLightDamage = 5f; //hafif seviyede tick başına wealth kaybı
     public float vandalismModerateDamage = 15f; //orta seviyede tick başına wealth kaybı

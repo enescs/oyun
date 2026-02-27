@@ -63,6 +63,7 @@ public class WarForOilManager : MonoBehaviour
 
     //vandalizm sistemi
     private bool vandalismPending; //trigger event bekliyor
+    private bool vandalismTriggered; //bu savaşta vandalizm zaten tetiklendi mi (tekrar tetiklenmez)
     private VandalismLevel pendingVandalismLevel; //trigger sonrası atanacak seviye
     private VandalismLevel currentVandalismLevel = VandalismLevel.None;
     private float vandalismDamageTimer;
@@ -1200,6 +1201,7 @@ public class WarForOilManager : MonoBehaviour
             && database.vandalismTriggerEvent != null)
         {
             vandalismPending = true;
+            vandalismTriggered = true;
             pendingVandalismLevel = newLevel;
             return;
         }
@@ -1303,6 +1305,7 @@ public class WarForOilManager : MonoBehaviour
         protestDriftRate = 0f;
         protestDriftTimer = 0f;
         vandalismPending = false;
+        vandalismTriggered = false;
         pendingVandalismLevel = VandalismLevel.None;
         currentVandalismLevel = VandalismLevel.None;
         vandalismDamageTimer = 0f;
@@ -1358,6 +1361,20 @@ public class WarForOilManager : MonoBehaviour
                 protestTriggered = true; //bir daha tetiklenmez
                 OnProtestForeshadow?.Invoke();
                 return; //bu cycle'ı tüket, event gösterilmez
+            }
+        }
+
+        //vandalizm otomatik tetikleme: protest aktifken şans bazlı
+        if (!vandalismTriggered && protestActive && !protestSuppressed
+            && currentVandalismLevel == VandalismLevel.None && !vandalismPending
+            && database.vandalismTriggerEvent != null)
+        {
+            if (UnityEngine.Random.value < database.vandalismChance)
+            {
+                vandalismPending = true;
+                vandalismTriggered = true;
+                pendingVandalismLevel = database.initialVandalismLevel;
+                return; //bu cycle'ı tüket
             }
         }
 
