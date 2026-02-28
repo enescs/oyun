@@ -4,6 +4,10 @@ using UnityEngine;
 [CreateAssetMenu(fileName = "BiomePaintSettings", menuName = "Map/BiomePaintSettings")]
 public class BiomePaintSettings : ScriptableObject
 {
+    [Header("Beach — sandy coastal strip")]
+    public Color beachDark  = new Color(0.72f, 0.62f, 0.38f); // wet sand
+    public Color beachLight = new Color(0.86f, 0.78f, 0.52f); // dry sand
+
     [Header("Water")]
     public Color waterDeep    = new Color(0.04f, 0.12f, 0.35f);
     public Color waterShallow = new Color(0.12f, 0.35f, 0.62f);

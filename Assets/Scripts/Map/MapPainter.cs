@@ -17,11 +17,19 @@ public class MapPainter : MonoBehaviour
     [Tooltip("Tile width of the transition band between two different regions")]
     [Range(1, 80)] public int transitionWidth = 30;
 
+    [Header("Beaches")]
+    [Tooltip("Chance (0-1) that a coastline segment gets a beach")]
+    [Range(0f, 1f)] public float beachChance = 0.5f;
+    [Tooltip("How many tiles inland the beach extends")]
+    [Range(1, 40)] public int beachWidth = 10;
+
     private MapDecorPlacer decorPlacer;
     private Texture2D mapTexture;
     private float[,] waterDistMap;
     private float[,] borderDist;
     private int[,]   nearestOther;
+    private float[,] beachDistMap;
+    private int[,]   shoreDistField;
 
     void Awake() { decorPlacer = GetComponent<MapDecorPlacer>(); }
     void OnEnable()  { if (mapGenerator != null) mapGenerator.OnMapGenerated += Paint; }
@@ -36,6 +44,7 @@ public class MapPainter : MonoBehaviour
 
         BuildWaterDistanceField(w, h);
         BuildBorderDistanceField(w, h);
+        BuildBeachMap(w, h);
 
         if (mapTexture != null) Destroy(mapTexture);
         mapTexture = new Texture2D(w, h, TextureFormat.RGBA32, false);
@@ -66,6 +75,88 @@ public class MapPainter : MonoBehaviour
     }
 
     // -------------------------------------------------------------------------
+    // SHORE DISTANCE FIELD
+    // BFS from land pixels that touch water — gives exact tile distance from shore
+    // -------------------------------------------------------------------------
+
+    void BuildShoreDistField(int w, int h)
+    {
+        shoreDistField = new int[w, h];
+        for (int x = 0; x < w; x++)
+            for (int y = 0; y < h; y++)
+                shoreDistField[x, y] = int.MaxValue;
+
+        int[] dx4 = { 1, -1, 0, 0 };
+        int[] dy4 = { 0, 0, 1, -1 };
+
+        Queue<Vector2Int> queue = new Queue<Vector2Int>();
+
+        for (int x = 0; x < w; x++)
+            for (int y = 0; y < h; y++)
+            {
+                if (!mapGenerator.IsLand(x, y)) continue;
+                for (int i = 0; i < 4; i++)
+                {
+                    int nx = x + dx4[i], ny = y + dy4[i];
+                    if (nx < 0 || nx >= w || ny < 0 || ny >= h) continue;
+                    if (!mapGenerator.IsLand(nx, ny))
+                    {
+                        shoreDistField[x, y] = 0;
+                        queue.Enqueue(new Vector2Int(x, y));
+                        break;
+                    }
+                }
+            }
+
+        while (queue.Count > 0)
+        {
+            var pos = queue.Dequeue();
+            int d = shoreDistField[pos.x, pos.y];
+            for (int i = 0; i < 4; i++)
+            {
+                int nx = pos.x + dx4[i], ny = pos.y + dy4[i];
+                if (nx < 0 || nx >= w || ny < 0 || ny >= h) continue;
+                if (!mapGenerator.IsLand(nx, ny)) continue;
+                if (shoreDistField[nx, ny] <= d + 1) continue;
+                shoreDistField[nx, ny] = d + 1;
+                queue.Enqueue(new Vector2Int(nx, ny));
+            }
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // BEACH MAP
+    // -------------------------------------------------------------------------
+
+    void BuildBeachMap(int w, int h)
+    {
+        BuildShoreDistField(w, h);
+
+        beachDistMap = new float[w, h];
+        float beachSeed = 7777f;
+
+        for (int x = 0; x < w; x++)
+            for (int y = 0; y < h; y++)
+            {
+                beachDistMap[x, y] = -1f;
+                if (!mapGenerator.IsLand(x, y)) continue;
+
+                int sd = shoreDistField[x, y];
+                if (sd == int.MaxValue || sd > beachWidth) continue;
+
+                // Very low frequency noise — large coherent beach stretches
+                float selector = Mathf.PerlinNoise(x * 0.015f + beachSeed, y * 0.015f + beachSeed);
+
+                // Fade selector near inland edge so beaches thin out naturally
+                float inlandFade = 1f - ((float)sd / beachWidth);
+                selector *= inlandFade;
+
+                if (selector > (1f - beachChance))
+                    beachDistMap[x, y] = (float)sd / beachWidth;
+            }
+    }
+
+    // -------------------------------------------------------------------------
     // BORDER DISTANCE FIELD
     // -------------------------------------------------------------------------
 
@@ -90,7 +181,6 @@ public class MapPainter : MonoBehaviour
         Queue<Vector2Int> queue = new Queue<Vector2Int>();
 
         for (int x = 0; x < w; x++)
-        {
             for (int y = 0; y < h; y++)
             {
                 if (!mapGenerator.IsLand(x, y)) continue;
@@ -98,8 +188,7 @@ public class MapPainter : MonoBehaviour
 
                 for (int i = 0; i < 4; i++)
                 {
-                    int nx = x + dx4[i];
-                    int ny = y + dy4[i];
+                    int nx = x + dx4[i], ny = y + dy4[i];
                     if (nx < 0 || nx >= w || ny < 0 || ny >= h) continue;
                     if (!mapGenerator.IsLand(nx, ny)) continue;
 
@@ -116,7 +205,6 @@ public class MapPainter : MonoBehaviour
                     }
                 }
             }
-        }
 
         while (queue.Count > 0)
         {
@@ -127,8 +215,7 @@ public class MapPainter : MonoBehaviour
 
             for (int i = 0; i < 4; i++)
             {
-                int nx = pos.x + dx4[i];
-                int ny = pos.y + dy4[i];
+                int nx = pos.x + dx4[i], ny = pos.y + dy4[i];
                 if (nx < 0 || nx >= w || ny < 0 || ny >= h) continue;
                 if (!mapGenerator.IsLand(nx, ny)) continue;
                 if (mapGenerator.GetBiome(nx, ny) != myBiome) continue;
@@ -160,16 +247,27 @@ public class MapPainter : MonoBehaviour
         float d          = borderDist[x, y];
         int   otherBiome = nearestOther[x, y];
 
+        // Beach overrides everything — paint beach and blend into region inland
+        float beachD = beachDistMap[x, y];
+        if (beachD >= 0f)
+        {
+            Color beachColor  = PaintBeach(x, y, seed);
+            float blendT      = Mathf.SmoothStep(0f, 1f, beachD);
+            Color regionColor = GetBiomeColor(myBiome, x, y, seed);
+            return Color.Lerp(beachColor, regionColor, blendT);
+        }
+
         if (d >= 1f || otherBiome == 0)
             return GetBiomeColor(myBiome, x, y, seed);
 
-        // Only the lower-ID biome drives the transition to avoid double bands
         if (myBiome > otherBiome)
             return GetBiomeColor(myBiome, x, y, seed);
 
-        // Warp t with noise so the border line is irregular, not a perfect ring
-        float warp = Perlin(x, y, seed + 3000f, 0.05f) * 0.4f - 0.2f;
-        float t    = Mathf.Clamp01(d + warp);
+        float warp  = Perlin(x, y, seed + 3000f, 0.05f) * 0.4f - 0.2f;
+        float t     = Mathf.Clamp01(d + warp);
+        float chaos = Perlin(x, y, seed + 4000f, 0.09f) * 0.3f - 0.15f;
+        t = Mathf.Clamp01(t + chaos);
+        t = Mathf.SmoothStep(0f, 1f, t);
 
         Color myColor    = GetBiomeColor(myBiome,    x, y, seed);
         Color otherColor = GetBiomeColor(otherBiome, x, y, seed);
@@ -193,6 +291,20 @@ public class MapPainter : MonoBehaviour
     // BIOME PAINT METHODS
     // -------------------------------------------------------------------------
 
+    Color PaintBeach(int x, int y, float seed)
+    {
+        float n1 = Mathf.PerlinNoise(x * 0.025f + seed + 2000f, y * 0.025f + seed + 2000f);
+        float n2 = Mathf.PerlinNoise(x * 0.06f  + seed + 2040f, y * 0.06f  + seed + 2040f) * 0.5f;
+        float n3 = Mathf.PerlinNoise(x * 0.13f  + seed + 2080f, y * 0.13f  + seed + 2080f) * 0.25f;
+        float n  = (n1 + n2 + n3) / 1.75f;
+
+        if (n < 0.38f) return settings.beachDark;
+        if (n < 0.46f) return Color.Lerp(settings.beachDark, settings.beachLight, 0.33f);
+        if (n < 0.56f) return settings.beachLight;
+        if (n < 0.64f) return Color.Lerp(settings.beachDark, settings.beachLight, 0.66f);
+        return settings.beachDark;
+    }
+
     Color PaintUrban(int x, int y, float seed)
     {
         float n1 = Mathf.PerlinNoise(x * 0.018f + seed,       y * 0.018f + seed);
@@ -201,15 +313,14 @@ public class MapPainter : MonoBehaviour
         float n  = (n1 + n2 + n3) / 1.75f;
 
         if (n < 0.35f) return settings.urbanDark;
-        if (n < 0.42f) return Color.Lerp(settings.urbanDark,  settings.urbanLight, 0.33f);
+        if (n < 0.42f) return Color.Lerp(settings.urbanDark, settings.urbanLight, 0.33f);
         if (n < 0.52f) return settings.urbanLight;
-        if (n < 0.60f) return Color.Lerp(settings.urbanDark,  settings.urbanLight, 0.66f);
+        if (n < 0.60f) return Color.Lerp(settings.urbanDark, settings.urbanLight, 0.66f);
         return settings.urbanDark;
     }
 
     Color PaintAgricultural(int x, int y, float seed)
     {
-        // Slightly higher frequency — fields are more varied and patchy than open nature
         float n1 = Mathf.PerlinNoise(x * 0.022f + seed + 100f, y * 0.022f + seed + 100f);
         float n2 = Mathf.PerlinNoise(x * 0.055f + seed + 140f, y * 0.055f + seed + 140f) * 0.5f;
         float n3 = Mathf.PerlinNoise(x * 0.13f  + seed + 180f, y * 0.13f  + seed + 180f) * 0.25f;
@@ -224,7 +335,6 @@ public class MapPainter : MonoBehaviour
 
     Color PaintCities(int x, int y, float seed)
     {
-        // Lower frequency — concrete and pavement have large uniform slabs
         float n1 = Mathf.PerlinNoise(x * 0.014f + seed + 300f, y * 0.014f + seed + 300f);
         float n2 = Mathf.PerlinNoise(x * 0.038f + seed + 340f, y * 0.038f + seed + 340f) * 0.5f;
         float n3 = Mathf.PerlinNoise(x * 0.09f  + seed + 380f, y * 0.09f  + seed + 380f) * 0.25f;
@@ -239,13 +349,11 @@ public class MapPainter : MonoBehaviour
 
     Color PaintIndustrial(int x, int y, float seed)
     {
-        // High small-scale frequency — cracked, scarred, harsh surface
         float n1 = Mathf.PerlinNoise(x * 0.020f + seed + 600f, y * 0.020f + seed + 600f);
         float n2 = Mathf.PerlinNoise(x * 0.055f + seed + 640f, y * 0.055f + seed + 640f) * 0.5f;
         float n3 = Mathf.PerlinNoise(x * 0.14f  + seed + 680f, y * 0.14f  + seed + 680f) * 0.25f;
         float n  = (n1 + n2 + n3) / 1.75f;
 
-        // Deep cracks — rare dark lines cutting through
         float crack = Mathf.PerlinNoise(x * 0.06f + seed + 700f, y * 0.06f + seed + 700f);
         if (crack > 0.76f) return settings.industrialCrack;
 
@@ -284,8 +392,7 @@ public class MapPainter : MonoBehaviour
             int d = dist[pos.x, pos.y];
             for (int i = 0; i < 4; i++)
             {
-                int nx = pos.x + dx4[i];
-                int ny = pos.y + dy4[i];
+                int nx = pos.x + dx4[i], ny = pos.y + dy4[i];
                 if (nx < 0 || nx >= w || ny < 0 || ny >= h) continue;
                 if (dist[nx, ny] != -1) continue;
                 dist[nx, ny] = d + 1;
