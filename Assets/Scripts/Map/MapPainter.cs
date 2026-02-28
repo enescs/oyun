@@ -15,11 +15,7 @@ public class MapPainter : MonoBehaviour
 
     [Header("Region Transitions")]
     [Tooltip("Tile width of the transition band between two different regions")]
-    [Range(1, 30)]  public int transitionWidth = 8;
-    [Tooltip("Number of discrete color steps in the region transition")]
-    [Range(2, 10)]  public int transitionSteps = 4;
-    [Tooltip("0 = hard snap between dark/light within a region, 1 = full gradient")]
-    [Range(0f, 1f)] public float intraRegionWidth = 0.30f;
+    [Range(1, 80)] public int transitionWidth = 30;
 
     private MapDecorPlacer decorPlacer;
     private Texture2D mapTexture;
@@ -199,17 +195,11 @@ public class MapPainter : MonoBehaviour
 
     Color PaintUrban(int x, int y, float seed)
     {
-        // Layer 1: large landmass-scale variation
-        float n1 = Mathf.PerlinNoise(x * 0.018f + seed,        y * 0.018f + seed);
-        // Layer 2: medium formations — hills, clearings
-        float n2 = Mathf.PerlinNoise(x * 0.045f + seed + 40f,  y * 0.045f + seed + 40f) * 0.5f;
-        // Layer 3: small surface detail — rocks, undergrowth
-        float n3 = Mathf.PerlinNoise(x * 0.11f  + seed + 80f,  y * 0.11f  + seed + 80f) * 0.25f;
+        float n1 = Mathf.PerlinNoise(x * 0.018f + seed,       y * 0.018f + seed);
+        float n2 = Mathf.PerlinNoise(x * 0.045f + seed + 40f, y * 0.045f + seed + 40f) * 0.5f;
+        float n3 = Mathf.PerlinNoise(x * 0.11f  + seed + 80f, y * 0.11f  + seed + 80f) * 0.25f;
+        float n  = (n1 + n2 + n3) / 1.75f;
 
-        float n = (n1 + n2 + n3) / 1.75f;
-
-        // Hard threshold — no smooth blend, snaps between dark and light
-        // Multiple thresholds create distinct natural bands
         if (n < 0.35f) return settings.urbanDark;
         if (n < 0.42f) return Color.Lerp(settings.urbanDark,  settings.urbanLight, 0.33f);
         if (n < 0.52f) return settings.urbanLight;
@@ -219,42 +209,51 @@ public class MapPainter : MonoBehaviour
 
     Color PaintAgricultural(int x, int y, float seed)
     {
-        float wx   = x + Perlin(x, y, seed + 110f, 0.015f) * 25f;
-        float wy   = y + Perlin(x, y, seed + 120f, 0.015f) * 25f;
-        float n    = Mathf.PerlinNoise(wx * 0.03f + seed + 100f, wy * 0.03f + seed + 100f);
-        float half = intraRegionWidth * 0.5f;
-        float t    = Mathf.InverseLerp(0.5f - half, 0.5f + half, n);
-        t = Mathf.Floor(t * transitionSteps) / (transitionSteps - 1);
-        t = Mathf.Clamp01(t);
-        return Color.Lerp(settings.agriculturalDark, settings.agriculturalLight, t);
+        // Slightly higher frequency — fields are more varied and patchy than open nature
+        float n1 = Mathf.PerlinNoise(x * 0.022f + seed + 100f, y * 0.022f + seed + 100f);
+        float n2 = Mathf.PerlinNoise(x * 0.055f + seed + 140f, y * 0.055f + seed + 140f) * 0.5f;
+        float n3 = Mathf.PerlinNoise(x * 0.13f  + seed + 180f, y * 0.13f  + seed + 180f) * 0.25f;
+        float n  = (n1 + n2 + n3) / 1.75f;
+
+        if (n < 0.32f) return settings.agriculturalDark;
+        if (n < 0.40f) return Color.Lerp(settings.agriculturalDark, settings.agriculturalLight, 0.33f);
+        if (n < 0.55f) return settings.agriculturalLight;
+        if (n < 0.63f) return Color.Lerp(settings.agriculturalDark, settings.agriculturalLight, 0.66f);
+        return settings.agriculturalDark;
     }
 
     Color PaintCities(int x, int y, float seed)
     {
-        float wx   = x + Perlin(x, y, seed + 310f, 0.015f) * 25f;
-        float wy   = y + Perlin(x, y, seed + 320f, 0.015f) * 25f;
-        float n    = Mathf.PerlinNoise(wx * 0.03f + seed + 300f, wy * 0.03f + seed + 300f);
-        float half = intraRegionWidth * 0.5f;
-        float t    = Mathf.InverseLerp(0.5f - half, 0.5f + half, n);
-        t = Mathf.Floor(t * transitionSteps) / (transitionSteps - 1);
-        t = Mathf.Clamp01(t);
-        return Color.Lerp(settings.citiesDark, settings.citiesLight, t);
+        // Lower frequency — concrete and pavement have large uniform slabs
+        float n1 = Mathf.PerlinNoise(x * 0.014f + seed + 300f, y * 0.014f + seed + 300f);
+        float n2 = Mathf.PerlinNoise(x * 0.038f + seed + 340f, y * 0.038f + seed + 340f) * 0.5f;
+        float n3 = Mathf.PerlinNoise(x * 0.09f  + seed + 380f, y * 0.09f  + seed + 380f) * 0.25f;
+        float n  = (n1 + n2 + n3) / 1.75f;
+
+        if (n < 0.38f) return settings.citiesDark;
+        if (n < 0.46f) return Color.Lerp(settings.citiesDark, settings.citiesLight, 0.33f);
+        if (n < 0.56f) return settings.citiesLight;
+        if (n < 0.64f) return Color.Lerp(settings.citiesDark, settings.citiesLight, 0.66f);
+        return settings.citiesDark;
     }
 
     Color PaintIndustrial(int x, int y, float seed)
     {
-        float wx   = x + Perlin(x, y, seed + 610f, 0.015f) * 25f;
-        float wy   = y + Perlin(x, y, seed + 620f, 0.015f) * 25f;
-        float n    = Mathf.PerlinNoise(wx * 0.03f + seed + 600f, wy * 0.03f + seed + 600f);
+        // High small-scale frequency — cracked, scarred, harsh surface
+        float n1 = Mathf.PerlinNoise(x * 0.020f + seed + 600f, y * 0.020f + seed + 600f);
+        float n2 = Mathf.PerlinNoise(x * 0.055f + seed + 640f, y * 0.055f + seed + 640f) * 0.5f;
+        float n3 = Mathf.PerlinNoise(x * 0.14f  + seed + 680f, y * 0.14f  + seed + 680f) * 0.25f;
+        float n  = (n1 + n2 + n3) / 1.75f;
 
+        // Deep cracks — rare dark lines cutting through
         float crack = Mathf.PerlinNoise(x * 0.06f + seed + 700f, y * 0.06f + seed + 700f);
         if (crack > 0.76f) return settings.industrialCrack;
 
-        float half = intraRegionWidth * 0.5f;
-        float t    = Mathf.InverseLerp(0.5f - half, 0.5f + half, n);
-        t = Mathf.Floor(t * transitionSteps) / (transitionSteps - 1);
-        t = Mathf.Clamp01(t);
-        return Color.Lerp(settings.industrialDark, settings.industrialLight, t);
+        if (n < 0.36f) return settings.industrialDark;
+        if (n < 0.44f) return Color.Lerp(settings.industrialDark, settings.industrialLight, 0.33f);
+        if (n < 0.54f) return settings.industrialLight;
+        if (n < 0.62f) return Color.Lerp(settings.industrialDark, settings.industrialLight, 0.66f);
+        return settings.industrialDark;
     }
 
     // -------------------------------------------------------------------------
