@@ -17,6 +17,7 @@ public class WarForOilEvent : ScriptableObject
     [TextArea(3, 10)] public string eventNote; //geliştiriciler için event açıklama notu, oyuna etkisi yok
 
     public float minWarTime = 0f; //bu event savaş başladıktan en az kaç saniye sonra gelebilir
+    public float maxWarTime = -1f; //bu event savaş başladıktan en geç kaç saniye sonra gelebilir (-1 = sınırsız)
     public float decisionTime = 10f; //karar süresi (saniye)
     public bool isRepeatable; //aynı savaşta tekrar tetiklenebilir mi
     public bool isUnlimitedRepeat; //sınırsız tekrar (isRepeatable true ise)
@@ -66,7 +67,8 @@ public class WarForOilEventChoice
     public float suspicionModifier; //şüphe etkisi
     public float reputationModifier; //itibar etkisi (pozitif = artar, negatif = düşer)
     public float politicalInfluenceModifier; //politik nüfuz etkisi (negatif = düşürür)
-    public int costModifier; //maliyet etkisi
+    public int costModifier; //maliyet etkisi (savaş sonunda birikimli uygulanır)
+    public float wealthModifier; //anlık para değişimi (pozitif = kazan, negatif = kaybet, seçildiğinde hemen uygulanır)
     public float cornerGrabModifier; //köşe kapma stat'ını etkiler (pozitif = bizim lehimize)
     public float protestModifier; //toplum tepkisi stat'ını etkiler (pozitif = tepki artar, negatif = azalır)
     [Range(0f, 1f)] public float protestTriggerChanceBonus; //protest tetiklenme şansına eklenen bonus (yarılanarak söner)
@@ -91,6 +93,15 @@ public class WarForOilEventChoice
     public float dealDelay; //anlaşma kaç saniye sonra savaşı bitirir (0 = anında)
     [Range(0f, 1f)] public float dealRewardRatio; //normal kazanımın bu oranı garanti verilir (0.8 = %80)
     public bool blocksEvents; //seçilirse savaş sonuna kadar yeni event gelmez
+    public bool blocksCeasefire; //seçilirse savaş sonuna kadar ateşkes yapılamaz
+    public bool blocksEventGroup; //seçilirse belirtilen gruptaki tüm eventler bir daha tetiklenmez
+    public ScriptableObject blockedGroup; //engellenecek grup (WTETWCEventGroup veya OFPCEventGroup sürüklenebilir)
+
+    //olasılıklı ödül düşürme (3 sonuç: event tekrar tetiklenir / ödül düşer / hiçbir şey olmaz)
+    public bool hasProbabilisticRewardReduction;
+    [Range(0f, 1f)] public float probRetriggerChance; //event tekrar tetiklenme şansı
+    [Range(0f, 1f)] public float probRewardReductionChance; //ödül düşme şansı
+    [Range(0f, 1f)] public float probRewardReductionAmount; //ödül düşme miktarı (0.3 = %30)
 
     //olasılıklı savaş bitirme (Inspector tarafından "Diğer Sonuçlar" foldout'unda çizilir)
     public bool hasProbabilisticWarEnd; //olasılık bazlı 3 sonuç: savaş biter / event yok olur / tekrar tetiklenir

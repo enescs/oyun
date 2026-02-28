@@ -201,7 +201,9 @@ public class WarForOilEventEditor : Editor
             EditorGUILayout.PropertyField(choice.FindPropertyRelative("politicalInfluenceModifier"),
                 new GUIContent("Politik Nüfuz"));
             EditorGUILayout.PropertyField(choice.FindPropertyRelative("costModifier"),
-                new GUIContent("Maliyet"));
+                new GUIContent("Maliyet (Birikimli)"));
+            EditorGUILayout.PropertyField(choice.FindPropertyRelative("wealthModifier"),
+                new GUIContent("Anlık Para"));
             EditorGUILayout.PropertyField(choice.FindPropertyRelative("cornerGrabModifier"),
                 new GUIContent("Köşe Kapma"));
 
@@ -301,6 +303,65 @@ public class WarForOilEventEditor : Editor
             EditorGUILayout.PropertyField(
                 choice.FindPropertyRelative("blocksEvents"),
                 new GUIContent("Event Engelle"));
+            EditorGUILayout.PropertyField(
+                choice.FindPropertyRelative("blocksCeasefire"),
+                new GUIContent("Ateşkes Engelle"));
+            SerializedProperty blocksGroup = choice.FindPropertyRelative("blocksEventGroup");
+            EditorGUILayout.PropertyField(blocksGroup, new GUIContent("Grubu Engelle"));
+            if (blocksGroup.boolValue)
+            {
+                EditorGUI.indentLevel++;
+                EditorGUILayout.PropertyField(
+                    choice.FindPropertyRelative("blockedGroup"),
+                    new GUIContent("Engellenecek Grup"));
+                EditorGUI.indentLevel--;
+            }
+
+            SerializedProperty hasProbReward = choice.FindPropertyRelative("hasProbabilisticRewardReduction");
+            EditorGUILayout.PropertyField(hasProbReward, new GUIContent("Olasılıklı Ödül Düşür"));
+            if (hasProbReward.boolValue)
+            {
+                EditorGUI.indentLevel++;
+
+                SerializedProperty probRetrigger = choice.FindPropertyRelative("probRetriggerChance");
+                SerializedProperty probReduction = choice.FindPropertyRelative("probRewardReductionChance");
+
+                //tekrar tetiklenme şansı
+                probRetrigger.isExpanded = EditorGUILayout.Foldout(probRetrigger.isExpanded, "Tekrar Tetiklenme Şansı", true);
+                if (probRetrigger.isExpanded)
+                {
+                    EditorGUI.indentLevel++;
+                    EditorGUILayout.Slider(probRetrigger, 0f, 1f, GUIContent.none);
+                    EditorGUI.indentLevel--;
+                }
+
+                //ödül düşme şansı
+                probReduction.isExpanded = EditorGUILayout.Foldout(probReduction.isExpanded, "Ödül Düşme Şansı", true);
+                if (probReduction.isExpanded)
+                {
+                    EditorGUI.indentLevel++;
+                    EditorGUILayout.Slider(probReduction, 0f, 1f, GUIContent.none);
+                    EditorGUI.indentLevel--;
+                }
+
+                float nothingChance = 1f - probRetrigger.floatValue - probReduction.floatValue;
+                if (nothingChance < 0f) nothingChance = 0f;
+                EditorGUILayout.HelpBox(
+                    $"Hiçbir şey olmama: %{nothingChance * 100f:F0}",
+                    MessageType.Info);
+
+                //ödül düşme miktarı
+                SerializedProperty probAmount = choice.FindPropertyRelative("probRewardReductionAmount");
+                probAmount.isExpanded = EditorGUILayout.Foldout(probAmount.isExpanded, "Düşme Miktarı", true);
+                if (probAmount.isExpanded)
+                {
+                    EditorGUI.indentLevel++;
+                    EditorGUILayout.Slider(probAmount, 0f, 1f, GUIContent.none);
+                    EditorGUI.indentLevel--;
+                }
+
+                EditorGUI.indentLevel--;
+            }
 
             SerializedProperty hasProbWarEnd = choice.FindPropertyRelative("hasProbabilisticWarEnd");
             EditorGUILayout.PropertyField(hasProbWarEnd, new GUIContent("Olasılıklı Savaşı Bitir"));
@@ -537,6 +598,7 @@ public class WarForOilEventEditor : Editor
         choice.FindPropertyRelative("reputationModifier").floatValue = 0f;
         choice.FindPropertyRelative("politicalInfluenceModifier").floatValue = 0f;
         choice.FindPropertyRelative("costModifier").intValue = 0;
+        choice.FindPropertyRelative("wealthModifier").floatValue = 0f;
         choice.FindPropertyRelative("cornerGrabModifier").floatValue = 0f;
         choice.FindPropertyRelative("protestModifier").floatValue = 0f;
         choice.FindPropertyRelative("protestTriggerChanceBonus").floatValue = 0f;
@@ -552,6 +614,13 @@ public class WarForOilEventEditor : Editor
         choice.FindPropertyRelative("dealDelay").floatValue = 0f;
         choice.FindPropertyRelative("dealRewardRatio").floatValue = 0f;
         choice.FindPropertyRelative("blocksEvents").boolValue = false;
+        choice.FindPropertyRelative("blocksCeasefire").boolValue = false;
+        choice.FindPropertyRelative("blocksEventGroup").boolValue = false;
+        choice.FindPropertyRelative("blockedGroup").objectReferenceValue = null;
+        choice.FindPropertyRelative("hasProbabilisticRewardReduction").boolValue = false;
+        choice.FindPropertyRelative("probRetriggerChance").floatValue = 0f;
+        choice.FindPropertyRelative("probRewardReductionChance").floatValue = 0f;
+        choice.FindPropertyRelative("probRewardReductionAmount").floatValue = 0f;
         choice.FindPropertyRelative("hasProbabilisticWarEnd").boolValue = false;
         choice.FindPropertyRelative("probWarEndChance").floatValue = 0f;
         choice.FindPropertyRelative("probDismissChance").floatValue = 0f;

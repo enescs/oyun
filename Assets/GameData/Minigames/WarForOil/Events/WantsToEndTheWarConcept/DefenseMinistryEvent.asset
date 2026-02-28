@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: bfbaecc4cb0677840a36451123fe4ad1, type: 3}
   m_Name: DefenseMinistryEvent
   m_EditorClassIdentifier: Assembly-CSharp::WarForOilEvent
-  id: wfoevent01
+  id: wfo_wtetwc_02
   displayName: The Minister of Defense wants to end the war.
   description: "Rising casualties and political pressure have pushed peace talks
     to the table. You can sabotage the process, accelerate it, or quietly steer it
@@ -30,7 +30,8 @@ MonoBehaviour:
     savunma bakan\u0131 ikna olmaya meyillenir.\n\nikinci se\xE7enek bar\u0131\u015F\u0131
     sa\u011Flamakt\u0131r oyun h\u0131zl\u0131ca ate\u015Fkese ba\u011Flan\u0131r.\n\n\xFC\xE7\xFCnc\xFC
     se\xE7enek g\xF6revden almakt\u0131r siyasi n\xFCfuz gerekir\n\nd\xF6rd\xFCnc\xFC
-    se\xE7enek \xF6ld\xFCrmektir mafya skilli gerekir\n\nbe\u015Finci se\xE7enek
+    se\xE7enek \xF6ld\xFCrmektir mafya skilli gerekir. \xF6ld\xFCr\xFCl\xFCrse bir
+    sonraki eventte protest ba\u015Flama ihtimali %30 artar\n\n\nbe\u015Finci se\xE7enek
     r\xFC\u015Fvetlemektir \"b\xFCy\xFCk ihtimalle\" ve daha az \u015F\xFCpheyle
     ikna eder"
   minWarTime: 90
@@ -49,6 +50,7 @@ MonoBehaviour:
     costModifier: 0
     cornerGrabModifier: 0
     protestModifier: 0
+    protestTriggerChanceBonus: 0
     hasProtestChance: 0
     protestDecreaseChance: 0
     protestDecreaseAmount: 0
@@ -95,6 +97,7 @@ MonoBehaviour:
     costModifier: 0
     cornerGrabModifier: 0
     protestModifier: 0
+    protestTriggerChanceBonus: 0
     hasProtestChance: 0
     protestDecreaseChance: 0
     protestDecreaseAmount: 0
@@ -141,6 +144,7 @@ MonoBehaviour:
     costModifier: 0
     cornerGrabModifier: 0
     protestModifier: 0
+    protestTriggerChanceBonus: 0
     hasProtestChance: 0
     protestDecreaseChance: 0
     protestDecreaseAmount: 0
@@ -190,6 +194,7 @@ MonoBehaviour:
     costModifier: 0
     cornerGrabModifier: 0
     protestModifier: 0
+    protestTriggerChanceBonus: 0.3
     hasProtestChance: 0
     protestDecreaseChance: 0
     protestDecreaseAmount: 0
@@ -239,6 +244,7 @@ MonoBehaviour:
     costModifier: 0
     cornerGrabModifier: 0
     protestModifier: 0
+    protestTriggerChanceBonus: 0
     hasProtestChance: 0
     protestDecreaseChance: 0
     protestDecreaseAmount: 0

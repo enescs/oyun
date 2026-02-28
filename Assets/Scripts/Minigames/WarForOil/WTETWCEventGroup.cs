@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-[CreateAssetMenu(menuName = "Minigames/WarForOil/WTETWCEventGroup")]
+[CreateAssetMenu(menuName = "Minigames/WarForOil/EventGroups/WTETWCEventGroup")]
 public class WTETWCEventGroup : ScriptableObject
 {
     public string id;
@@ -14,5 +14,14 @@ public class WTETWCEventGroup : ScriptableObject
 public class EventGroupMember
 {
     public WarForOilEvent warEvent; //grup üyesi event
-    public float triggerWeight = 1f; //havuzda seçilme ağırlığı (1 = normal, 0.3 = düşük şans)
+    public TriggerWeightLevel weightLevel = TriggerWeightLevel.Normal; //tetiklenme ağırlığı
+}
+
+public enum TriggerWeightLevel
+{
+    ExtremelyLess, // 0.25x
+    Less,          // 0.5x
+    Normal,        // 1.0x (varsayılan)
+    More,          // 1.25x
+    Extreme        // 1.5x
 }

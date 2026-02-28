@@ -35,6 +35,7 @@ public class WarForOilManager : MonoBehaviour
     private int accumulatedCostModifier;
     private float rewardMultiplier; //baseRewardReduction'lar sonucu biriken ödül çarpanı (1.0'dan başlar)
     private bool eventsBlocked; //bir choice eventleri engelledi mi
+    private bool ceasefireBlocked; //bir choice ateşkesi engelledi mi
     private bool pendingDeal; //anlaşmayla bitirme aktif mi
     private float dealRewardRatio; //anlaşma ödül oranı
 
@@ -266,6 +267,10 @@ public class WarForOilManager : MonoBehaviour
         accumulatedPoliticalInfluenceModifier += choice.politicalInfluenceModifier;
         accumulatedCostModifier += choice.costModifier;
 
+        //anlık para değişimi
+        if (choice.wealthModifier != 0f && GameStatManager.Instance != null)
+            GameStatManager.Instance.AddWealth(choice.wealthModifier);
+
         //feed dondurma
         if (choice.freezesFeed && SocialMediaManager.Instance != null)
             SocialMediaManager.Instance.TryFreezeFeed();
@@ -423,6 +428,10 @@ public class WarForOilManager : MonoBehaviour
         if (choice.reducesReward && choice.baseRewardReduction > 0f)
             rewardMultiplier *= (1f - choice.baseRewardReduction);
 
+        //olasılıklı ödül düşürme — zar atılır, 3 sonuçtan biri uygulanır
+        if (choice.hasProbabilisticRewardReduction)
+            ResolveProbabilisticRewardReduction(choice, resolvedEvent);
+
         //olasılıklı savaş bitirme — zar atılır, 3 sonuçtan biri uygulanır
         if (choice.hasProbabilisticWarEnd)
         {
@@ -434,6 +443,14 @@ public class WarForOilManager : MonoBehaviour
         //event engelleme (blocksEvents, endsWar veya anlaşma seçildiyse artık event gelmez)
         if (choice.blocksEvents || choice.endsWar || choice.endsWarWithDeal)
             eventsBlocked = true;
+
+        //ateşkes engelleme
+        if (choice.blocksCeasefire)
+            ceasefireBlocked = true;
+
+        //belirtilen gruptaki tüm eventleri engelle
+        if (choice.blocksEventGroup && choice.blockedGroup != null)
+            DismissEventGroup(choice.blockedGroup);
 
         //savaşı bitirme seçeneği seçildiyse kalan süreyi ayarla
         if (choice.endsWar)
@@ -462,6 +479,7 @@ public class WarForOilManager : MonoBehaviour
     public void RequestCeasefire()
     {
         if (currentState != WarForOilState.WarProcess) return;
+        if (ceasefireBlocked) return;
         if (supportStat < database.ceasefireMinSupport) return;
 
         //ateşkes oranı: 0 (en kötü) → 1 (en iyi)
@@ -1592,7 +1610,60 @@ public class WarForOilManager : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Olasılıklı ödül düşürme. 3 sonuç:
+    /// 1) Event tekrar tetiklenir
+    /// 2) Ödül düşer (rewardMultiplier azalır)
+    /// 3) Hiçbir şey olmaz
+    /// </summary>
+    private void ResolveProbabilisticRewardReduction(WarForOilEventChoice choice, WarForOilEvent evt)
+    {
+        float roll = UnityEngine.Random.value;
+
+        if (roll < choice.probRetriggerChance)
+        {
+            //sonuç: event tekrar tetiklenir
+            forcedNextEvent = evt;
+        }
+        else if (roll < choice.probRetriggerChance + choice.probRewardReductionChance)
+        {
+            //sonuç: ödül düşer
+            rewardMultiplier *= (1f - choice.probRewardReductionAmount);
+            dismissedEventIds.Add(evt.id);
+        }
+        else
+        {
+            //sonuç: hiçbir şey olmaz
+            dismissedEventIds.Add(evt.id);
+        }
+    }
+
     // ==================== EVENT GRUP SİSTEMİ ====================
+
+    /// <summary>
+    /// Belirtilen gruptaki tüm eventleri dismissedEventIds'e ekler.
+    /// </summary>
+    private void DismissEventGroup(ScriptableObject groupObj)
+    {
+        if (groupObj is OFPCEventGroup ofpcGroup)
+        {
+            if (ofpcGroup.members == null) return;
+            for (int i = 0; i < ofpcGroup.members.Count; i++)
+            {
+                if (ofpcGroup.members[i] != null)
+                    dismissedEventIds.Add(ofpcGroup.members[i].id);
+            }
+        }
+        else if (groupObj is WTETWCEventGroup wtetwcGroup)
+        {
+            if (wtetwcGroup.members == null) return;
+            for (int i = 0; i < wtetwcGroup.members.Count; i++)
+            {
+                if (wtetwcGroup.members[i].warEvent != null)
+                    dismissedEventIds.Add(wtetwcGroup.members[i].warEvent.id);
+            }
+        }
+    }
 
     /// <summary>
     /// Grup kontrolü: maxTriggerCount aşıldıysa bu event bloklanır.
@@ -1632,7 +1703,7 @@ public class WarForOilManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Event'in ağırlığını döner. Grup üyesiyse member weight, değilse 1.
+    /// Event'in ağırlığını döner. Grup üyesiyse weight level'a göre, değilse 1.
     /// </summary>
     private float GetEventWeight(WarForOilEvent evt)
     {
@@ -1646,11 +1717,24 @@ public class WarForOilManager : MonoBehaviour
             for (int j = 0; j < group.members.Count; j++)
             {
                 if (group.members[j].warEvent == evt)
-                    return group.members[j].triggerWeight;
+                    return WeightLevelToFloat(group.members[j].weightLevel);
             }
         }
 
         return 1f;
+    }
+
+    private float WeightLevelToFloat(TriggerWeightLevel level)
+    {
+        switch (level)
+        {
+            case TriggerWeightLevel.ExtremelyLess: return 0.25f;
+            case TriggerWeightLevel.Less: return 0.5f;
+            case TriggerWeightLevel.Normal: return 1f;
+            case TriggerWeightLevel.More: return 1.25f;
+            case TriggerWeightLevel.Extreme: return 1.5f;
+            default: return 1f;
+        }
     }
 
     // ==================== İÇ MANTIK ====================
@@ -1671,6 +1755,7 @@ public class WarForOilManager : MonoBehaviour
         accumulatedCostModifier = 0;
         rewardMultiplier = 1f;
         eventsBlocked = false;
+        ceasefireBlocked = false;
         pendingDeal = false;
         dealRewardRatio = 0f;
         eventTriggerCounts.Clear();
@@ -1835,6 +1920,7 @@ public class WarForOilManager : MonoBehaviour
             {
                 WarForOilEvent evt = eventPool[i];
                 if (warTimer < evt.minWarTime) continue;
+                if (evt.maxWarTime >= 0f && warTimer > evt.maxWarTime) continue;
                 if (dismissedEventIds.Contains(evt.id)) continue;
                 if (IsBlockedByGroup(evt)) continue;
 
@@ -1853,6 +1939,7 @@ public class WarForOilManager : MonoBehaviour
             {
                 WarForOilEvent evt = database.protestEvents[i];
                 if (warTimer < evt.minWarTime) continue;
+                if (evt.maxWarTime >= 0f && warTimer > evt.maxWarTime) continue;
                 if (dismissedEventIds.Contains(evt.id)) continue;
                 if (IsBlockedByGroup(evt)) continue;
 
@@ -1872,6 +1959,7 @@ public class WarForOilManager : MonoBehaviour
             {
                 WarForOilEvent evt = mediaPursuitPool[i];
                 if (warTimer < evt.minWarTime) continue;
+                if (evt.maxWarTime >= 0f && warTimer > evt.maxWarTime) continue;
                 if (dismissedEventIds.Contains(evt.id)) continue;
                 if (IsBlockedByGroup(evt)) continue;
 
@@ -2097,6 +2185,7 @@ public class WarForOilManager : MonoBehaviour
     public bool CanRequestCeasefire()
     {
         return currentState == WarForOilState.WarProcess
+            && !ceasefireBlocked
             && supportStat >= database.ceasefireMinSupport;
     }
 
