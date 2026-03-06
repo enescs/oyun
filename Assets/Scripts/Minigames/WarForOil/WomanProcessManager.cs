@@ -72,17 +72,49 @@ public class WomanProcessManager : MonoBehaviour
         //event karar sayacı
         if (currentState == WomanProcessState.EventPhase)
         {
+            //süresiz event (decisionTime <= 0) — sayaç işlemez, oyuncu seçene kadar bekler
+            if (eventDecisionTimer < 0f) return;
+
             eventDecisionTimer -= Time.unscaledDeltaTime;
             OnWomanEventDecisionTimerUpdate?.Invoke(eventDecisionTimer);
 
             if (eventDecisionTimer <= 0f)
             {
-                //süre doldu — varsayılan seçenek
-                int defaultIdx = currentWomanEvent.defaultChoiceIndex;
-                if (defaultIdx < 0 || defaultIdx >= currentWomanEvent.choices.Count)
-                    defaultIdx = 0;
+                //süre doldu — önce varsayılan, yoksa ilk available seçenek
+                int fallbackIdx = -1;
 
-                ResolveEvent(defaultIdx);
+                //varsayılan seçenek available mı
+                int defaultIdx = currentWomanEvent.defaultChoiceIndex;
+                if (defaultIdx >= 0 && defaultIdx < currentWomanEvent.choices.Count
+                    && currentWomanEvent.choices[defaultIdx].IsAvailable())
+                {
+                    fallbackIdx = defaultIdx;
+                }
+                else
+                {
+                    //ilk available seçeneği bul
+                    for (int i = 0; i < currentWomanEvent.choices.Count; i++)
+                    {
+                        if (currentWomanEvent.choices[i].IsAvailable())
+                        {
+                            fallbackIdx = i;
+                            break;
+                        }
+                    }
+                }
+
+                if (fallbackIdx >= 0)
+                {
+                    ResolveEvent(fallbackIdx);
+                }
+                else
+                {
+                    //hiçbir seçenek available değil — eventi sonuçsuz kapat
+                    currentWomanEvent = null;
+                    currentState = WomanProcessState.Active;
+                    if (GameManager.Instance != null)
+                        GameManager.Instance.ResumeGame();
+                }
             }
         }
     }
@@ -306,7 +338,7 @@ public class WomanProcessManager : MonoBehaviour
         EventCoordinator.MarkEventShown();
 
         currentState = WomanProcessState.EventPhase;
-        eventDecisionTimer = database.decisionTime;
+        eventDecisionTimer = evt.decisionTime > 0f ? evt.decisionTime : -1f;
 
         if (GameManager.Instance != null)
             GameManager.Instance.PauseGame();

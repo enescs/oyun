@@ -975,8 +975,9 @@ public class WarForOilManager : MonoBehaviour
 
         if (totalWeight <= 0f)
         {
-            //tüm ağırlıklar 0 — eşit dağılımlı seç (bitme dahil edilmez)
-            selected = pendingChainBranches[UnityEngine.Random.Range(0, pendingChainBranches.Count)].targetEvent;
+            //tüm ağırlıklar 0 — uygun branch kalmadı, zincir biter
+            EndChain();
+            return;
         }
         else
         {
@@ -1004,7 +1005,12 @@ public class WarForOilManager : MonoBehaviour
             }
         }
 
-        if (selected == null) return;
+        if (selected == null)
+        {
+            //hedef event null — zincir biter
+            EndChain();
+            return;
+        }
 
         //chain event tetiklenince önceki tick etkisi durur (yeni choice kendi etkisini başlatabilir)
         hasActiveChainTickEffect = false;
