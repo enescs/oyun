@@ -32,4 +32,6 @@ MonoBehaviour:
   citiesDecor:
   - {fileID: 1414139173100871430, guid: 2e14e007b7a7427468dae8b7dd166528, type: 3}
   - {fileID: 4037621421494769097, guid: 42256e3a290a09741a0d10a71df2efd5, type: 3}
+  - {fileID: -1426929989288815221, guid: b8d001d0c940b754eb16354d090da07c, type: 3}
+  - {fileID: -8747121057869537726, guid: 806596b6223b7384c9210b93acb38cc8, type: 3}
   industrialDecor: []

@@ -8763,7 +8763,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 4543920815820282623, guid: 9792acab6e34b3e43905c119b7bfc8b6, type: 3}
       propertyPath: minSize
-      value: 1
+      value: 0.75
       objectReference: {fileID: 0}
     - target: {fileID: 4543920815820282623, guid: 9792acab6e34b3e43905c119b7bfc8b6, type: 3}
       propertyPath: mapRenderer
@@ -9993,10 +9993,10 @@ MonoBehaviour:
   roadNeighbourConnections: 3
   roadConnectionBias: 1
   roadConnectionMaxSteps: 500
-  roadBranchCount: 6
-  roadBranchBias: 1
-  roadBranchMaxSteps: 250
-  roadBranchMinDistance: 50
+  roadBranchCount: 0
+  roadBranchBias: 0.968
+  roadBranchMaxSteps: 416
+  roadBranchMinDistance: 74
   roadThickness: 1
   roadRegionBorderBuffer: 5
   roadColor: {r: 0.3, g: 0.28, b: 0.25, a: 1}
