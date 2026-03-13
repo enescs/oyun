@@ -932,6 +932,19 @@ public class WarForOilManager : MonoBehaviour
     }
 
     /// <summary>
+    /// Event'in herhangi bir choice'unda startsWomanProcess var mı kontrol eder.
+    /// </summary>
+    private bool HasAnyWomanProcessChoice(WarForOilEvent evt)
+    {
+        if (evt == null || evt.choices == null) return false;
+        for (int i = 0; i < evt.choices.Count; i++)
+        {
+            if (evt.choices[i].startsWomanProcess) return true;
+        }
+        return false;
+    }
+
+    /// <summary>
     /// Chain slotunda pendingChainBranches'tan aralık bazlı ağırlıklı seçim yaparak event tetikler.
     /// Stat bazlı: stat'ın mevcut yüzdesine göre 4 aralıktan biri seçilir, o aralığın ağırlığı kullanılır.
     /// JustLuck: sadece weightRange0 kullanılır (stat etkisi yok).
@@ -961,6 +974,16 @@ public class WarForOilManager : MonoBehaviour
             //engellenen event ise ağırlık 0 — dallanma hedefi olamaz
             if (pendingChainBranches[i].targetEvent != null
                 && blockedBranchEventIds.Contains(pendingChainBranches[i].targetEvent.id))
+            {
+                weights[i] = 0f;
+                continue;
+            }
+
+            //kadın süreci zaten yaşandıysa, kadın süreci başlatan eventleri dallanmadan çıkar
+            if (pendingChainBranches[i].targetEvent != null
+                && WomanProcessManager.Instance != null
+                && WomanProcessManager.Instance.WasTriggeredThisGame
+                && HasAnyWomanProcessChoice(pendingChainBranches[i].targetEvent))
             {
                 weights[i] = 0f;
                 continue;

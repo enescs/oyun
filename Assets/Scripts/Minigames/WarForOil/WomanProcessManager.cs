@@ -13,6 +13,7 @@ public class WomanProcessManager : MonoBehaviour
     private WomanProcessState currentState = WomanProcessState.Inactive;
     private float womanObsession;
     private bool wasTriggeredThisGame; //oyun boyunca tek sefer başlatılabilir
+    public bool WasTriggeredThisGame => wasTriggeredThisGame;
     private bool isInWar; //şu an savaş aktif mi
     private int eventCounter; //son kadın eventinden beri sayılan event sayısı
     private WarForOilEvent currentWomanEvent;
