@@ -45,6 +45,12 @@ public class WarForOilEvent : ScriptableObject
     public float maxObsession = 100f; //bu event sadece obsesyon bu değerin altındayken gelir (100 = sınırsız)
     public List<WarForOilEvent> blockedWomanProcessEvents; //bu event tetiklenince havuzdan/zincirlerden çıkarılacak eventler
 
+    //öncü event — kadın eventi tetiklenmeden önce bu event gösterilir, 4 saniye sonra asıl kadın eventi gelir
+    public bool hasPrecursorEvent; //true ise bu kadın eventinin bir öncü eventi var
+    public PrecursorEventType precursorEventType; //öncü eventin tipi
+    public WarForOilEvent precursorWarEvent; //öncü war for oil eventi
+    public Event precursorRandomEvent; //öncü random event
+
     [Header("Zincir Ayarları")]
     public ChainRole chainRole = ChainRole.None; //bu event zincirde mi (Head = zincir başlatıcı)
     public bool blocksSubChainBranching; //true ise bu event tetiklendikten sonra başka zincirlerden dallanma hedefi olarak seçilemez
@@ -295,4 +301,13 @@ public enum PermanentMultiplierStatType
     Reputation,
     PoliticalInfluence,
     WarSupport
+}
+
+/// <summary>
+/// Kadın süreci eventlerinin öncü event tipi.
+/// </summary>
+public enum PrecursorEventType
+{
+    WarForOil,      //öncü event bir war for oil eventi (savaş yoksa ikisi de tetiklenmez)
+    RandomEvent     //öncü event bir random event
 }

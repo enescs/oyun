@@ -31,6 +31,7 @@ public class WarForOilEventEditor : Editor
             "isVandalismEvent", "vandalismLevelOnTrigger", "startsVandalism", "forcesVandalismStart",
             "isMediaPursuitEvent", "mediaPursuitLevelOnTrigger",
             "isWomanProcessEvent", "minObsession", "maxObsession", "blockedWomanProcessEvents",
+            "hasPrecursorEvent", "precursorEventType", "precursorWarEvent", "precursorRandomEvent",
             "chainRole", "blocksSubChainBranching", "alsoBlockedBranchEvents",
             "minWarTime", "maxWarTime");
 
@@ -165,8 +166,37 @@ public class WarForOilEventEditor : Editor
             EditorGUILayout.PropertyField(
                 serializedObject.FindProperty("blockedWomanProcessEvents"),
                 new GUIContent("Yasaklanan Eventler"), true);
+
+            //öncü event
+            EditorGUILayout.Space(4);
+            SerializedProperty hasPrecursor = serializedObject.FindProperty("hasPrecursorEvent");
+            EditorGUILayout.PropertyField(hasPrecursor, new GUIContent("Öncü Event Var"));
+            if (hasPrecursor.boolValue)
+            {
+                EditorGUI.indentLevel++;
+                SerializedProperty precursorType = serializedObject.FindProperty("precursorEventType");
+                EditorGUILayout.PropertyField(precursorType, new GUIContent("Öncü Tip"));
+
+                if ((PrecursorEventType)precursorType.enumValueIndex == PrecursorEventType.WarForOil)
+                {
+                    EditorGUILayout.PropertyField(
+                        serializedObject.FindProperty("precursorWarEvent"),
+                        new GUIContent("War For Oil Event"));
+                    EditorGUILayout.HelpBox(
+                        "Savaş yoksa bu kadın eventi ve öncü event ikisi de tetiklenmez.",
+                        MessageType.Warning);
+                }
+                else
+                {
+                    EditorGUILayout.PropertyField(
+                        serializedObject.FindProperty("precursorRandomEvent"),
+                        new GUIContent("Random Event"));
+                }
+                EditorGUI.indentLevel--;
+            }
+
             EditorGUILayout.HelpBox(
-                "Obsesyon aralığı: Event sadece obsesyon bu aralıktayken havuzdan seçilebilir (0-100 = sınırsız).\nYasaklanan eventler: Bu event tetiklenince listedeki eventler havuzdan ve zincirlerden çıkarılır.",
+                "Obsesyon aralığı: Event sadece obsesyon bu aralıktayken havuzdan seçilebilir (0-100 = sınırsız).\nYasaklanan eventler: Bu event tetiklenince listedeki eventler havuzdan ve zincirlerden çıkarılır.\nÖncü event: Kadın eventi gelmeden önce bağlı event tetiklenir, 4sn sonra kadın eventi gelir.",
                 MessageType.Info);
             EditorGUI.indentLevel--;
         }

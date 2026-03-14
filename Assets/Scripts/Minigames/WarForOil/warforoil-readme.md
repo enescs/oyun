@@ -210,6 +210,11 @@ Savas sirasinda tetiklenen karar olaylari. Ayni event sinifi normal eventler, zi
 | `isWomanProcessEvent` | true ise bu event kadin sureci havuzlarinda kullanilir. Choice'larda womanObsessionModifier alani gorunur. |
 | `minObsession` / `maxObsession` | Eventin havuzdan secilebilecegi obsesyon araligi. Tier araligini daraltabilir ama genisletemez (kesisim alinir). Kesisim yoksa ozel aralik gecersiz sayilir, tier araligi kullanilir. Sadece havuzdan rastgele secimde gecerli — zincir dallanmasi eventlerinde bu filtre uygulanmaz. |
 | `blockedWomanProcessEvents` | Bu event tetiklenince listedeki eventler havuzdan ve zincirlerden cikarilir. Head ise zinciri hic baslamaz, dal ise agirligi digerlerine kayar. |
+| **Oncu Event** | |
+| `hasPrecursorEvent` | true ise bu kadin eventinin bir oncu eventi vardir. Kadin eventi gelmeden once oncu event tetiklenir, 4 saniye sonra asil kadin eventi gelir. |
+| `precursorEventType` | Oncu eventin tipi: `WarForOil` veya `RandomEvent`. WarForOil secilirse savas yokken bu kadin eventi ve oncusu ikisi de tetiklenmez. |
+| `precursorWarEvent` | Oncu war for oil eventi (precursorEventType=WarForOil ise). |
+| `precursorRandomEvent` | Oncu random event (precursorEventType=RandomEvent ise). |
 
 #### ChainRole Enum
 
@@ -1078,6 +1083,25 @@ Kadin sureci eventleri `blockedWomanProcessEvents` listesi tasiyabilir. Bir even
 5. Tum dallar dismissed ise zincir biter, tier havuzundan devam edilir
 
 Inspector'da `Kadin Sureci Eventi` tiklenince altta `Yasaklanan Eventler` listesi gorunur.
+
+### Oncu Event Sistemi
+
+Bir kadin sureci eventine oncu event baglanabilir. Akis:
+
+1. Kadin eventi havuzdan secilir
+2. Oncu event varsa once o tetiklenir (oyun durur, oyuncu secer)
+3. Oncu event cozulunce oyun devam eder
+4. 4 saniye sonra asil kadin sureci eventi tetiklenir
+
+**Oncu event tipleri:**
+- `WarForOil`: Oncu event bir war for oil eventidir. Savas yoksa bu kadin eventi ve oncusu ikisi de tetiklenmez (havuzdan filtrelenir).
+- `RandomEvent`: Oncu event bir random eventtir. Savas durumundan bagimsiz calisir.
+
+**Oncu event etkileri:**
+- War for oil oncu: `suspicionModifier`, `reputationModifier`, `politicalInfluenceModifier`, `wealthModifier`, `womanObsessionModifier`, feed etkileri uygulanir. Savas aktifse savas-spesifik etkiler de uygulanir.
+- Random event oncu: `RandomEventManager.SelectChoice()` ile tum efektler uygulanir.
+
+**State akisi:** `Active → PrecursorPhase → PrecursorDelay (4sn) → EventPhase → Active`
 
 ### Event Cozumleme
 

@@ -22,6 +22,17 @@ public class WomanProcessManager : MonoBehaviour
     private Dictionary<WarForOilEvent, int> womanEventTriggerCounts = new Dictionary<WarForOilEvent, int>();
     private HashSet<WarForOilEvent> dismissedWomanEvents = new HashSet<WarForOilEvent>(); //yasaklanan eventler
 
+    //öncü event durumu
+    private WarForOilEvent pendingWomanEventAfterPrecursor; //öncü event sonrası tetiklenecek kadın eventi
+    private float precursorDelayTimer; //öncü event çözüldükten sonra kalan bekleme süresi
+    private bool precursorWasWarEvent; //öncü event war for oil mi (savaş kontrolü için)
+    private const float PRECURSOR_DELAY = 4f; //öncü event ile kadın eventi arası bekleme süresi (saniye)
+
+    //öncü event karar sayacı
+    private WarForOilEvent currentPrecursorWarEvent; //gösterilen öncü war for oil event
+    private Event currentPrecursorRandomEvent; //gösterilen öncü random event
+    private float precursorDecisionTimer;
+
     //zincir durumu
     private bool isInWomanChain;
     private List<ChainBranch> pendingWomanChainBranches;
@@ -40,6 +51,10 @@ public class WomanProcessManager : MonoBehaviour
     public static event Action<WarForOilEventChoice> OnWomanEventResolved; //seçim yapıldı
     public static event Action OnWomanProcessEnded; //süreç bitti (obsesyon düştü)
     public static event Action OnWomanProcessGameOver; //game over (obsesyon 100)
+    public static event Action<WarForOilEvent> OnPrecursorWarEventTriggered; //öncü war for oil event tetiklendi
+    public static event Action<Event> OnPrecursorRandomEventTriggered; //öncü random event tetiklendi
+    public static event Action<float> OnPrecursorDecisionTimerUpdate; //öncü event karar sayacı güncellendi
+    public static event Action OnPrecursorEventResolved; //öncü event çözüldü, bekleme başlıyor
 
     private void Awake()
     {
@@ -78,6 +93,68 @@ public class WomanProcessManager : MonoBehaviour
             {
                 pendingTrigger = false;
                 TriggerWomanEvent();
+            }
+        }
+
+        //öncü event karar sayacı
+        if (currentState == WomanProcessState.PrecursorPhase)
+        {
+            if (precursorDecisionTimer < 0f) goto skipPrecursor; //süresiz — oyuncu seçene kadar bekle
+
+            precursorDecisionTimer -= Time.unscaledDeltaTime;
+            OnPrecursorDecisionTimerUpdate?.Invoke(precursorDecisionTimer);
+
+            if (precursorDecisionTimer <= 0f)
+            {
+                //süre doldu — öncü event için varsayılan seçenek
+                if (currentPrecursorWarEvent != null)
+                {
+                    int defaultIdx = currentPrecursorWarEvent.defaultChoiceIndex;
+                    if (defaultIdx >= 0 && defaultIdx < currentPrecursorWarEvent.choices.Count
+                        && currentPrecursorWarEvent.choices[defaultIdx].IsAvailable())
+                    {
+                        ResolvePrecursorWarEvent(defaultIdx);
+                    }
+                    else
+                    {
+                        for (int i = 0; i < currentPrecursorWarEvent.choices.Count; i++)
+                        {
+                            if (currentPrecursorWarEvent.choices[i].IsAvailable())
+                            {
+                                ResolvePrecursorWarEvent(i);
+                                break;
+                            }
+                        }
+                    }
+                }
+                else if (currentPrecursorRandomEvent != null)
+                {
+                    //random event — varsayılan ilk seçenek
+                    if (currentPrecursorRandomEvent.choices != null && currentPrecursorRandomEvent.choices.Count > 0)
+                        ResolvePrecursorRandomEvent(0);
+                }
+            }
+            skipPrecursor:;
+        }
+
+        //öncü event sonrası bekleme
+        if (currentState == WomanProcessState.PrecursorDelay)
+        {
+            precursorDelayTimer -= Time.deltaTime;
+            if (precursorDelayTimer <= 0f)
+            {
+                //savaş kontrolü — öncü war for oil eventiyse ve artık savaşta değilsek iptal
+                if (precursorWasWarEvent && !isInWar)
+                {
+                    pendingWomanEventAfterPrecursor = null;
+                    currentState = WomanProcessState.Active;
+                }
+                else
+                {
+                    //asıl kadın eventini tetikle
+                    ShowWomanEvent(pendingWomanEventAfterPrecursor);
+                    pendingWomanEventAfterPrecursor = null;
+                }
             }
         }
 
@@ -151,6 +228,9 @@ public class WomanProcessManager : MonoBehaviour
         dismissedWomanEvents.Clear();
         isInWomanChain = false;
         pendingWomanChainBranches = null;
+        pendingWomanEventAfterPrecursor = null;
+        currentPrecursorWarEvent = null;
+        currentPrecursorRandomEvent = null;
         currentState = WomanProcessState.Active;
 
         OnWomanProcessStarted?.Invoke();
@@ -388,6 +468,56 @@ public class WomanProcessManager : MonoBehaviour
 
         if (evt == null) return;
 
+        //öncü event kontrolü
+        if (evt.hasPrecursorEvent)
+        {
+            //war for oil öncüsü ve savaşta değilsek — ikisi de tetiklenmez
+            if (evt.precursorEventType == PrecursorEventType.WarForOil && !isInWar)
+                return;
+
+            pendingWomanEventAfterPrecursor = evt;
+            precursorWasWarEvent = evt.precursorEventType == PrecursorEventType.WarForOil;
+            ShowPrecursorEvent(evt);
+            return;
+        }
+
+        //öncü event yok — doğrudan kadın eventini göster
+        ShowWomanEvent(evt);
+    }
+
+    /// <summary>
+    /// Öncü eventi gösterir ve PrecursorPhase'e geçer.
+    /// </summary>
+    private void ShowPrecursorEvent(WarForOilEvent womanEvent)
+    {
+        EventCoordinator.MarkEventShown();
+        currentState = WomanProcessState.PrecursorPhase;
+
+        if (GameManager.Instance != null)
+            GameManager.Instance.PauseGame();
+
+        if (womanEvent.precursorEventType == PrecursorEventType.WarForOil)
+        {
+            currentPrecursorWarEvent = womanEvent.precursorWarEvent;
+            currentPrecursorRandomEvent = null;
+            precursorDecisionTimer = currentPrecursorWarEvent.decisionTime > 0f
+                ? currentPrecursorWarEvent.decisionTime : -1f;
+            OnPrecursorWarEventTriggered?.Invoke(currentPrecursorWarEvent);
+        }
+        else
+        {
+            currentPrecursorRandomEvent = womanEvent.precursorRandomEvent;
+            currentPrecursorWarEvent = null;
+            precursorDecisionTimer = -1f; //random eventlerde decisionTime yok, süresiz
+            OnPrecursorRandomEventTriggered?.Invoke(currentPrecursorRandomEvent);
+        }
+    }
+
+    /// <summary>
+    /// Kadın eventini doğrudan gösterir (öncü event yoksa veya öncü event sonrası).
+    /// </summary>
+    private void ShowWomanEvent(WarForOilEvent evt)
+    {
         currentWomanEvent = evt;
         womanEventTriggerCounts.TryGetValue(evt, out int count);
         womanEventTriggerCounts[evt] = count + 1;
@@ -534,6 +664,10 @@ public class WomanProcessManager : MonoBehaviour
             //yasaklanmış mı
             if (dismissedWomanEvents.Contains(evt)) continue;
 
+            //öncü event kontrolü — war for oil öncüsü varsa ve savaşta değilsek atla
+            if (evt.hasPrecursorEvent && evt.precursorEventType == PrecursorEventType.WarForOil && !isInWar)
+                continue;
+
             //obsesyon aralığı kontrolü — tier ile kesişim
             float effectiveMin = tierMin;
             float effectiveMax = tierMax;
@@ -573,6 +707,93 @@ public class WomanProcessManager : MonoBehaviour
         return eligible[UnityEngine.Random.Range(0, eligible.Count)];
     }
 
+    // ==================== ÖNCÜ EVENT ÇÖZÜM ====================
+
+    /// <summary>
+    /// Oyuncu öncü war for oil eventinde seçim yaptı.
+    /// </summary>
+    public void ResolvePrecursorWarEvent(int choiceIndex)
+    {
+        if (currentState != WomanProcessState.PrecursorPhase || currentPrecursorWarEvent == null) return;
+        if (choiceIndex < 0 || choiceIndex >= currentPrecursorWarEvent.choices.Count) return;
+
+        WarForOilEventChoice choice = currentPrecursorWarEvent.choices[choiceIndex];
+        if (!choice.IsAvailable()) return;
+
+        //stat etkileri uygula
+        if (GameStatManager.Instance != null)
+        {
+            if (choice.suspicionModifier != 0f)
+                GameStatManager.Instance.AddSuspicion(choice.suspicionModifier);
+            if (choice.reputationModifier != 0f)
+                GameStatManager.Instance.AddReputation(choice.reputationModifier);
+            if (choice.politicalInfluenceModifier != 0f)
+                GameStatManager.Instance.AddPoliticalInfluence(choice.politicalInfluenceModifier);
+            if (choice.wealthModifier != 0f)
+                GameStatManager.Instance.AddWealth(choice.wealthModifier);
+        }
+
+        //womanObsession etkisi
+        if (choice.womanObsessionModifier != 0f)
+        {
+            womanObsession = Mathf.Clamp(womanObsession + choice.womanObsessionModifier, 0f, 100f);
+            OnObsessionChanged?.Invoke(womanObsession);
+        }
+
+        //feed etkileri
+        if (SocialMediaManager.Instance != null)
+        {
+            if (choice.freezesFeed) SocialMediaManager.Instance.TryFreezeFeed();
+            if (choice.slowsFeed) SocialMediaManager.Instance.TrySlowFeed();
+            if (choice.hasFeedOverride)
+            {
+                if (choice.hasCounterFeedTopic)
+                    SocialMediaManager.Instance.SetEventOverride(choice.feedOverrideTopic, choice.feedOverrideRatio, choice.counterFeedTopic, choice.counterFeedRatio, choice.feedOverrideDuration);
+                else
+                    SocialMediaManager.Instance.SetEventOverride(choice.feedOverrideTopic, choice.feedOverrideRatio, choice.feedOverrideDuration);
+            }
+        }
+
+        //savaş-spesifik etkiler
+        if (isInWar && WarForOilManager.Instance != null)
+            WarForOilManager.Instance.ApplyExternalWarEffects(choice);
+
+        currentPrecursorWarEvent = null;
+        OnPrecursorEventResolved?.Invoke();
+
+        //oyunu devam ettir ve bekleme başlat
+        if (GameManager.Instance != null)
+            GameManager.Instance.ResumeGame();
+
+        precursorDelayTimer = PRECURSOR_DELAY;
+        currentState = WomanProcessState.PrecursorDelay;
+    }
+
+    /// <summary>
+    /// Oyuncu öncü random eventinde seçim yaptı.
+    /// </summary>
+    public void ResolvePrecursorRandomEvent(int choiceIndex)
+    {
+        if (currentState != WomanProcessState.PrecursorPhase || currentPrecursorRandomEvent == null) return;
+        if (choiceIndex < 0 || choiceIndex >= currentPrecursorRandomEvent.choices.Count) return;
+
+        EventChoice choice = currentPrecursorRandomEvent.choices[choiceIndex];
+
+        //random event seçenek etkilerini uygula
+        if (RandomEventManager.Instance != null)
+            RandomEventManager.Instance.SelectChoice(choice);
+
+        currentPrecursorRandomEvent = null;
+        OnPrecursorEventResolved?.Invoke();
+
+        //oyunu devam ettir ve bekleme başlat
+        if (GameManager.Instance != null)
+            GameManager.Instance.ResumeGame();
+
+        precursorDelayTimer = PRECURSOR_DELAY;
+        currentState = WomanProcessState.PrecursorDelay;
+    }
+
     private void CheckEndConditions()
     {
         if (currentState == WomanProcessState.Inactive) return;
@@ -602,8 +823,10 @@ public class WomanProcessManager : MonoBehaviour
 
     private enum WomanProcessState
     {
-        Inactive,   //süreç başlamadı veya bitti
-        Active,     //süreç aktif, event bekleniyor
-        EventPhase  //kadın eventi gösteriliyor
+        Inactive,       //süreç başlamadı veya bitti
+        Active,         //süreç aktif, event bekleniyor
+        PrecursorPhase, //öncü event gösteriliyor, oyuncu seçim yapıyor
+        PrecursorDelay, //öncü event çözüldü, 4 saniye bekleniyor
+        EventPhase      //kadın eventi gösteriliyor
     }
 }
