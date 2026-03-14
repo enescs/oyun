@@ -914,25 +914,21 @@ public class RoadGenerator : MonoBehaviour
             if (smoothed.Count < 10) smoothed = rawPath;
 
             // ---- 5) Kaydet + yeni dalı yol ağına ekle ----
-            //başlangıç noktasının highway'den BFS mesafesine göre gradient başlangıcını ayarla
-            //highway üstü=0, uzak dal ucu=yüksek → daldan çıkan dal doğru renk/kalınlıkta başlar
-            //highway pikselleri için roadDist zaten 0 yazılmış, ama biz orijinal mesafeyi bilmiyoruz
-            //en basiti: smoothed[0]'ın roadTypeMap'te highway mı branch mı olduğuna bakmak
-            //ama daha doğrusu: euclidean mesafeyi highway'e göre normalize etmek
-            float hwMinDist = float.MaxValue;
+            //dalın başlangıcı highway'e ne kadar uzaksa gradient o kadar ileri başlar
+            //böylece daldan çıkan alt dal, çıktığı noktanın renginden devam eder
+            float hwDist = float.MaxValue;
             foreach (var seg in highwaySegments)
             {
-                int step2 = Mathf.Max(1, seg.Count / 30);
-                for (int si = 0; si < seg.Count; si += step2)
+                int hStep = Mathf.Max(1, seg.Count / 40);
+                for (int si = 0; si < seg.Count; si += hStep)
                 {
                     float dd = Vector2Int.Distance(seg[si], smoothed[0]);
-                    if (dd < hwMinDist) hwMinDist = dd;
+                    if (dd < hwDist) hwDist = dd;
                 }
             }
-            //harita çaprazına göre normalize — 0=highway üstü, 1=harita köşesi
-            float mapDiag = Mathf.Sqrt(_w * _w + _h * _h);
-            float tStart = Mathf.Clamp01(hwMinDist / (mapDiag * 0.5f));
-            float tEnd = Mathf.Clamp01(tStart + (1f - tStart) * 0.8f);
+            float mapDiag = Mathf.Sqrt(_w * _w + _h * _h) * 0.4f;
+            float tStart = Mathf.Clamp01(hwDist / mapDiag) * 0.6f; //max 0.6'dan başlar
+            float tEnd = Mathf.Clamp01(tStart + (1f - tStart));
             RegisterBranchPixels(map, smoothed, tStart, tEnd);
             //her 5 pikselde bir allRoadNodes'a ekle — sonraki dallar buradan dallanabilsin
             for (int ri = 0; ri < smoothed.Count; ri += 5)
@@ -1023,58 +1019,68 @@ public class RoadGenerator : MonoBehaviour
     {
         if (rawPath.Count < 30) return rawPath;
 
-        //sık waypoint — her 15 pikselde bir
-        int smoothStep = Mathf.Max(8, rawPath.Count / 30);
+        // ==== 1. GEÇİŞ: BFS zigzag'larını yut — seyrek waypoint + spline ====
+        int step1 = Mathf.Clamp(rawPath.Count / 8, 20, 60);
+        List<Vector2> wp1 = new List<Vector2>();
+        wp1.Add((Vector2)rawPath[0]);
+        for (int i = step1; i < rawPath.Count - step1 / 2; i += step1)
+        {
+            //çevre ortalaması — lokal zigzag'ları eritir
+            int avgR = Mathf.Min(step1 / 3, 12);
+            float ax = 0, ay = 0; int cnt = 0;
+            for (int j = i - avgR; j <= i + avgR; j++)
+            {
+                if (j < 0 || j >= rawPath.Count) continue;
+                ax += rawPath[j].x; ay += rawPath[j].y; cnt++;
+            }
+            wp1.Add(new Vector2(ax / cnt, ay / cnt));
+        }
+        wp1.Add((Vector2)rawPath[rawPath.Count - 1]);
+
+        if (wp1.Count < 3) return rawPath;
+
+        List<Vector2Int> pass1 = SplineToPixels(wp1, 20);
+        //kara filtresi
+        List<Vector2Int> pass1Valid = new List<Vector2Int>();
+        foreach (var p in pass1)
+            if (map.IsLand(p.x, p.y)) pass1Valid.Add(p);
+        if (pass1Valid.Count < 20) return rawPath;
+
+        // ==== 2. GEÇİŞ: Perlin noise sapma + ikinci spline (pürüzsüz son hal) ====
+        int step2 = Mathf.Clamp(pass1Valid.Count / 12, 10, 40);
         float noiseSeed = UnityEngine.Random.Range(0f, 9999f);
-
-        List<Vector2> waypoints = new List<Vector2>();
-        waypoints.Add((Vector2)rawPath[0]);
-
-        //yolun genel yönünü hesapla (perpendicular sapma için)
-        Vector2 pathDir = ((Vector2)(rawPath[rawPath.Count - 1] - rawPath[0])).normalized;
+        Vector2 pathDir = ((Vector2)(pass1Valid[pass1Valid.Count - 1] - pass1Valid[0])).normalized;
         Vector2 pathPerp = new Vector2(-pathDir.y, pathDir.x);
-        float pathLength = Vector2Int.Distance(rawPath[0], rawPath[rawPath.Count - 1]);
+        float pathLength = Vector2Int.Distance(pass1Valid[0], pass1Valid[pass1Valid.Count - 1]);
         float maxDrift = pathLength * branchCurviness;
 
-        for (int i = smoothStep; i < rawPath.Count - smoothStep; i += smoothStep)
+        List<Vector2> wp2 = new List<Vector2>();
+        wp2.Add((Vector2)pass1Valid[0]);
+        for (int i = step2; i < pass1Valid.Count - step2 / 2; i += step2)
         {
-            Vector2 pt = (Vector2)rawPath[i];
-            float t = (float)i / rawPath.Count;
-
-            //Perlin noise ile doğal sapma — uçlara yakın sapma azalır
-            float edgeFade = Mathf.Sin(t * Mathf.PI); //0→0, 0.5→1, 1→0
+            Vector2 pt = (Vector2)pass1Valid[i];
+            float t = (float)i / pass1Valid.Count;
+            float edgeFade = Mathf.Sin(t * Mathf.PI);
             float noise = (Mathf.PerlinNoise(t * 3f + noiseSeed, noiseSeed * 0.7f) - 0.5f) * 2f;
-            float drift = noise * maxDrift * edgeFade;
+            pt += pathPerp * (noise * maxDrift * edgeFade);
 
-            pt += pathPerp * drift;
-
-            //sapma sonrası kara kontrolü — su ise orijinal noktaya geri dön
             int px = Mathf.Clamp(Mathf.RoundToInt(pt.x), 0, _w - 1);
             int py = Mathf.Clamp(Mathf.RoundToInt(pt.y), 0, _h - 1);
-            if (!map.IsLand(px, py))
-                pt = (Vector2)rawPath[i]; //orijinale geri dön
+            if (!map.IsLand(px, py)) pt = (Vector2)pass1Valid[i];
 
-            waypoints.Add(pt);
+            wp2.Add(pt);
         }
+        wp2.Add((Vector2)pass1Valid[pass1Valid.Count - 1]);
 
-        waypoints.Add((Vector2)rawPath[rawPath.Count - 1]);
+        if (wp2.Count < 3) return pass1Valid;
 
-        if (waypoints.Count < 3) return rawPath;
+        List<Vector2Int> pass2 = SplineToPixels(wp2, 20);
+        List<Vector2Int> result = new List<Vector2Int>();
+        foreach (var p in pass2)
+            if (map.IsLand(p.x, p.y)) result.Add(p);
 
-        //Catmull-Rom spline
-        List<Vector2Int> splinePixels = SplineToPixels(waypoints, 12);
-
-        //kara üzerinde mi kontrol et — su olan pikselleri atla
-        List<Vector2Int> valid = new List<Vector2Int>();
-        foreach (var p in splinePixels)
-        {
-            if (map.IsLand(p.x, p.y))
-                valid.Add(p);
-        }
-
-        if (valid.Count < rawPath.Count * 0.4f) return rawPath;
-
-        return valid;
+        if (result.Count < rawPath.Count * 0.3f) return pass1Valid;
+        return result;
     }
 
     /// <summary>
@@ -1111,19 +1117,30 @@ public class RoadGenerator : MonoBehaviour
     /// </summary>
     void RegisterBranchPixels(MapGenerator map, List<Vector2Int> pixels, float tStart, float tEnd)
     {
+        //highway'den çıkan dal mı (tStart≈0) yoksa alt dal mı (tStart>0) belirle
+        bool isSubBranch = tStart > 0.15f;
+        //alt dallar daha ince başlar
+        float thickStart = isSubBranch
+            ? Mathf.Lerp(branchStartThickness, branchEndThickness, 0.5f)
+            : branchStartThickness;
+
         for (int p = 0; p < pixels.Count; p++)
         {
             float localT = (float)p / Mathf.Max(1, pixels.Count - 1);
-            float t = Mathf.Lerp(tStart, tEnd, localT);
+
+            //renk geçişi: tStart→tEnd (highway mesafesine göre)
+            float colorT = Mathf.Lerp(tStart, tEnd, localT);
 
             int biome = map.GetBiome(pixels[p].x, pixels[p].y);
             GetBiomeBranchAppearance(biome, out Color targetFill, out Color targetOutline);
 
-            float thickness = Mathf.Lerp(branchStartThickness, branchEndThickness, t);
-            int outW = t < 0.6f ? branchOutlineWidth : Mathf.Max(0, branchOutlineWidth - 1);
+            //kalınlık: her dal kendi boyunca kalından inceye
+            float thickness = Mathf.Lerp(thickStart, branchEndThickness, localT);
+            int outW = localT < 0.6f ? branchOutlineWidth : Mathf.Max(0, branchOutlineWidth - 1);
 
-            Color fill = Color.Lerp(highwayFill, targetFill, t);
-            Color outline = Color.Lerp(highwayOutline, targetOutline, t);
+            //renk: highway renginden biome rengine yumuşak geçiş
+            Color fill = Color.Lerp(highwayFill, targetFill, colorT);
+            Color outline = Color.Lerp(highwayOutline, targetOutline, colorT);
 
             RegisterRoadTile(pixels[p], 2, thickness, outW, fill, outline);
         }
@@ -1173,9 +1190,17 @@ public class RoadGenerator : MonoBehaviour
             roadFillColorMap[tile.x, tile.y] = fill;
             roadOutlineColorMap[tile.x, tile.y] = outline;
         }
-        else if (roadType < existing) //daha öncelikli yol tipi üzerine yaz
+        else if (roadType < existing) //daha öncelikli yol tipi üzerine yaz (highway > branch)
         {
             roadTypeMap[tile.x, tile.y] = roadType;
+            roadThicknessMap[tile.x, tile.y] = thickness;
+            roadOutlineWidthMap[tile.x, tile.y] = outlineWidth;
+            roadFillColorMap[tile.x, tile.y] = fill;
+            roadOutlineColorMap[tile.x, tile.y] = outline;
+        }
+        else if (roadType == existing && roadType == 2 && thickness > roadThicknessMap[tile.x, tile.y])
+        {
+            //aynı tip branch çakışmasında kalın olan kazanır
             roadThicknessMap[tile.x, tile.y] = thickness;
             roadOutlineWidthMap[tile.x, tile.y] = outlineWidth;
             roadFillColorMap[tile.x, tile.y] = fill;
