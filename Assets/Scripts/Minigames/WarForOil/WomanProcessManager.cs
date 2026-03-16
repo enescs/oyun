@@ -53,6 +53,11 @@ public class WomanProcessManager : MonoBehaviour
     //döngü başına birden fazla kadın eventi desteği
     private int remainingWomanEventsInCycle;
 
+    //obsesyon düşüş limiti — aktifse obsesyon zirve değerinden belirli miktar düşünce süreç biter
+    private bool hasActiveDropLimit;
+    private float dropLimitDelta; //zirve obsesyondan bu kadar düşerse süreç biter
+    private float dropLimitPeakObsession; //limit aktifken ulaşılan en yüksek obsesyon
+
     //zincir durumu
     private bool isInWomanChain;
     private List<ChainBranch> pendingWomanChainBranches;
@@ -268,6 +273,9 @@ public class WomanProcessManager : MonoBehaviour
         immediateEventTimer = 0f;
         freezeRemainingCycles = 0;
         remainingWomanEventsInCycle = 0;
+        hasActiveDropLimit = false;
+        dropLimitDelta = 0f;
+        dropLimitPeakObsession = 0f;
         currentPrecursorWarEvent = null;
         currentPrecursorRandomEvent = null;
         currentState = WomanProcessState.Active;
@@ -396,6 +404,16 @@ public class WomanProcessManager : MonoBehaviour
         if (choice.freezesWomanProcess && choice.womanProcessFreezeCycles > 0)
         {
             FreezeProcess(choice.womanProcessFreezeCycles);
+        }
+
+        //obsesyon düşüş limiti — zirve obsesyondan belirli miktar düşerse süreç biter
+        if (choice.hasObsessionDropLimit && choice.obsessionDropLimit > 0f)
+        {
+            //daha sıkı (küçük delta) olan geçerli
+            if (!hasActiveDropLimit || choice.obsessionDropLimit < dropLimitDelta)
+                dropLimitDelta = choice.obsessionDropLimit;
+            hasActiveDropLimit = true;
+            dropLimitPeakObsession = Mathf.Max(dropLimitPeakObsession, womanObsession);
         }
 
         OnWomanEventResolved?.Invoke(choice);
@@ -575,6 +593,15 @@ public class WomanProcessManager : MonoBehaviour
 
     private void TriggerWomanEvent()
     {
+        //freeze aktifse zincir dahil hiçbir kadın eventi tetiklenmez — zincir askıda kalır
+        if (freezeRemainingCycles > 0)
+        {
+            freezeRemainingCycles--;
+            remainingWomanEventsInCycle = 0;
+            pendingTrigger = false;
+            return;
+        }
+
         WarForOilEvent evt;
 
         if (isInWomanChain)
@@ -1043,6 +1070,34 @@ public class WomanProcessManager : MonoBehaviour
             EndWomanChain();
             currentState = WomanProcessState.Inactive;
             OnWomanProcessEnded?.Invoke();
+            return;
+        }
+
+        //obsesyon düşüş limiti — zirve takipli
+        if (hasActiveDropLimit)
+        {
+            WomanProcessDatabase activeDb = redirectedDatabase != null ? redirectedDatabase : database;
+
+            //low→mid geçişi: obsesyon tier1Max'ı aştıysa limit kalıcı olarak kalkar
+            if (womanObsession > activeDb.tier1Max)
+            {
+                hasActiveDropLimit = false;
+                return;
+            }
+
+            //zirveyi güncelle
+            if (womanObsession > dropLimitPeakObsession)
+                dropLimitPeakObsession = womanObsession;
+
+            //eşik = zirve - delta
+            float threshold = dropLimitPeakObsession - dropLimitDelta;
+            if (womanObsession <= threshold)
+            {
+                hasActiveDropLimit = false;
+                EndWomanChain();
+                currentState = WomanProcessState.Inactive;
+                OnWomanProcessEnded?.Invoke();
+            }
         }
     }
 

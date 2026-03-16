@@ -394,14 +394,31 @@ public class WarForOilEventEditor : Editor
             EditorGUILayout.PrefixLabel("Kadın Süreci");
             SerializedProperty startsWP = choice.FindPropertyRelative("startsWomanProcess");
             SerializedProperty endsWP = choice.FindPropertyRelative("endsWomanProcess");
+            SerializedProperty freezesWP = choice.FindPropertyRelative("freezesWomanProcess");
             bool newStarts = GUILayout.Toggle(startsWP.boolValue, "Başlat", EditorStyles.miniButtonLeft, GUILayout.Width(60));
-            bool newEnds = GUILayout.Toggle(endsWP.boolValue, "Bitir", EditorStyles.miniButtonRight, GUILayout.Width(60));
-            //biri aktifleşince diğerini kapat
-            if (newStarts && !startsWP.boolValue) newEnds = false;
-            if (newEnds && !endsWP.boolValue) newStarts = false;
+            bool newEnds = GUILayout.Toggle(endsWP.boolValue, "Bitir", EditorStyles.miniButtonMid, GUILayout.Width(60));
+            bool newFreezes = GUILayout.Toggle(freezesWP.boolValue, "Dondur", EditorStyles.miniButtonRight, GUILayout.Width(60));
+            //biri aktifleşince diğerlerini kapat
+            if (newStarts && !startsWP.boolValue) { newEnds = false; newFreezes = false; }
+            if (newEnds && !endsWP.boolValue) { newStarts = false; newFreezes = false; }
+            if (newFreezes && !freezesWP.boolValue) { newStarts = false; newEnds = false; }
             startsWP.boolValue = newStarts;
             endsWP.boolValue = newEnds;
+            freezesWP.boolValue = newFreezes;
             EditorGUILayout.EndHorizontal();
+
+            if (freezesWP.boolValue)
+            {
+                EditorGUI.indentLevel++;
+                SerializedProperty freezeCycles = choice.FindPropertyRelative("womanProcessFreezeCycles");
+                freezeCycles.intValue = EditorGUILayout.IntField(
+                    new GUIContent("Dondurma (döngü)"), freezeCycles.intValue);
+                if (freezeCycles.intValue < 1) freezeCycles.intValue = 1;
+                EditorGUILayout.HelpBox(
+                    $"Kadın süreci {freezeCycles.intValue} döngü boyunca tetiklenmez. Mevcut dondurma varsa üstüne eklenir.",
+                    MessageType.Info);
+                EditorGUI.indentLevel--;
+            }
 
             //kadın süreci havuz yönlendirme — sadece kadın süreci eventlerinde göster
             if (serializedObject.FindProperty("isWomanProcessEvent").boolValue)
@@ -420,17 +437,17 @@ public class WarForOilEventEditor : Editor
                     EditorGUI.indentLevel--;
                 }
 
-                SerializedProperty freezesWP = choice.FindPropertyRelative("freezesWomanProcess");
-                EditorGUILayout.PropertyField(freezesWP, new GUIContent("Kadın Sürecini Dondur"));
-                if (freezesWP.boolValue)
+                SerializedProperty hasDropLimit = choice.FindPropertyRelative("hasObsessionDropLimit");
+                EditorGUILayout.PropertyField(hasDropLimit, new GUIContent("Obsesyon Düşüş Limiti"));
+                if (hasDropLimit.boolValue)
                 {
                     EditorGUI.indentLevel++;
-                    SerializedProperty freezeCycles = choice.FindPropertyRelative("womanProcessFreezeCycles");
-                    freezeCycles.intValue = EditorGUILayout.IntField(
-                        new GUIContent("Dondurma Süresi (döngü)"), freezeCycles.intValue);
-                    if (freezeCycles.intValue < 1) freezeCycles.intValue = 1;
+                    SerializedProperty dropLimit = choice.FindPropertyRelative("obsessionDropLimit");
+                    dropLimit.floatValue = EditorGUILayout.FloatField(
+                        new GUIContent("Düşüş Miktarı"), dropLimit.floatValue);
+                    if (dropLimit.floatValue < 0f) dropLimit.floatValue = 0f;
                     EditorGUILayout.HelpBox(
-                        $"Kadın süreci {freezeCycles.intValue} döngü boyunca tetiklenmez. Mevcut dondurma varsa üstüne eklenir.",
+                        $"Bu choice seçildiğinde obsesyon o anki değerinden {dropLimit.floatValue} düşerse kadın süreci otomatik sona erer.",
                         MessageType.Info);
                     EditorGUI.indentLevel--;
                 }
@@ -1143,6 +1160,8 @@ public class WarForOilEventEditor : Editor
         choice.FindPropertyRelative("redirectsWomanPool").boolValue = false;
         choice.FindPropertyRelative("freezesWomanProcess").boolValue = false;
         choice.FindPropertyRelative("womanProcessFreezeCycles").intValue = 1;
+        choice.FindPropertyRelative("hasObsessionDropLimit").boolValue = false;
+        choice.FindPropertyRelative("obsessionDropLimit").floatValue = 0f;
         choice.FindPropertyRelative("womanPoolDatabase").objectReferenceValue = null;
         choice.FindPropertyRelative("permanentMultipliers").ClearArray();
         choice.FindPropertyRelative("hasImmediateEvent").boolValue = false;

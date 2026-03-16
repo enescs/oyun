@@ -305,6 +305,8 @@ Event icindeki tek bir secenek. Serializable sinif.
 | `womanPoolDatabase` | Yonlendirilecek WomanProcessDatabase referansi. redirectsWomanPool aktifken gorunur. |
 | `freezesWomanProcess` | true ise kadin surecini belirli dongu sayisi kadar dondurur. Sadece isWomanProcessEvent acikken gorunur. |
 | `womanProcessFreezeCycles` | Kac dongu boyunca kadin eventi tetiklenmeyecek (min 1). freezesWomanProcess aktifken gorunur. Mevcut dondurma varsa ustune eklenir. |
+| `hasObsessionDropLimit` | true ise bu choice secildikten sonra obsesyon zirve degerinden belirli miktar duserse kadin sureci otomatik sona erer. Zirve takipli: obsesyon yukselirse esik de yukselir. Low→Mid kademe gecisinde limit kalici olarak kalkar. |
+| `obsessionDropLimit` | Zirve obsesyondan bu kadar duserse surec biter. Ornek: 12'de secildi, limit 3 → esik 9. Obsesyon 15'e cikti → esik 12. Birden fazla limit varsa en siki (kucuk delta) gecerli olur. |
 | **Kalici Stat Carpanlari** (foldout) | |
 | `permanentMultipliers` | Liste: birden fazla stat icin kalici carpan tanimlanabilir. Her entry: `stat` (PermanentMultiplierStatType) + `multiplier` (float). Ornek: 1.1 = %10 artis. Carpisimsal birikir. Tum oyun boyunca, tum kaynaklardan gecerlidir. Secenekler: Wealth, Suspicion, Reputation, PoliticalInfluence, WarSupport, WomanObsession. WarSupport icin WarForOilManager, WomanObsession icin WomanProcessManager, digerleri icin GameStatManager uygulanir. |
 | **On Kosullar** (foldout) | |

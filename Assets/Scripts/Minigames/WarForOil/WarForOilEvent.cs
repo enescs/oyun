@@ -172,6 +172,8 @@ public class WarForOilEventChoice
     public WomanProcessDatabase womanPoolDatabase; //yönlendirilecek database
     public bool freezesWomanProcess; //seçilince kadın sürecini belirli döngü sayısı kadar dondurur
     public int womanProcessFreezeCycles = 1; //kaç döngü boyunca kadın eventi gelmeyecek
+    public bool hasObsessionDropLimit; //true ise bu choice seçildikten sonra obsesyon belirli miktar düşerse süreç biter
+    public float obsessionDropLimit; //seçildiği andaki obsesyondan bu kadar düşerse kadın süreci otomatik sona erer
 
     //kalıcı stat çarpanları (seçildiğinde anında ve kalıcı uygulanır — tüm oyun boyunca geçerli)
     public List<PermanentMultiplierEntry> permanentMultipliers = new List<PermanentMultiplierEntry>();
