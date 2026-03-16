@@ -648,9 +648,13 @@ public class WomanProcessManager : MonoBehaviour
         //öncü event kontrolü
         if (evt.hasPrecursorEvent)
         {
-            //war for oil öncüsü ve savaşta değilsek — ikisi de tetiklenmez
+            //war for oil öncüsü ve savaşta değilsek — bu eventi atla, havuzdan başka bir event seç
             if (evt.precursorEventType == PrecursorEventType.WarForOil && !isInWar)
-                return;
+            {
+                WarForOilEvent fallback = PickEventFromTierPool(evt);
+                if (fallback == null) return;
+                evt = fallback;
+            }
 
             pendingWomanEventAfterPrecursor = evt;
             precursorWasWarEvent = evt.precursorEventType == PrecursorEventType.WarForOil;
@@ -720,7 +724,7 @@ public class WomanProcessManager : MonoBehaviour
         OnWomanEventTriggered?.Invoke(evt);
     }
 
-    private WarForOilEvent PickEventFromTierPool()
+    private WarForOilEvent PickEventFromTierPool(WarForOilEvent exclude = null)
     {
         //yönlendirilmiş database varsa onu kullan
         WomanProcessDatabase activeDb = redirectedDatabase != null ? redirectedDatabase : database;
@@ -730,7 +734,7 @@ public class WomanProcessManager : MonoBehaviour
         if (pool == null || pool.Count == 0) return null;
 
         activeDb.GetTierRange(tier, out float tierMin, out float tierMax);
-        return PickEventFromPool(pool, tierMin, tierMax);
+        return PickEventFromPool(pool, tierMin, tierMax, exclude);
     }
 
     /// <summary>
@@ -867,7 +871,7 @@ public class WomanProcessManager : MonoBehaviour
     /// Eventin özel aralığı tier aralığıyla kesiştirilir — daraltabilir ama genişletemez.
     /// Kesişim yoksa eventin özel aralığı geçersiz sayılır, tier aralığı olduğu gibi kullanılır.
     /// </summary>
-    private WarForOilEvent PickEventFromPool(List<WarForOilEvent> pool, float tierMin, float tierMax)
+    private WarForOilEvent PickEventFromPool(List<WarForOilEvent> pool, float tierMin, float tierMax, WarForOilEvent exclude = null)
     {
         List<WarForOilEvent> eligible = new List<WarForOilEvent>();
 
@@ -875,6 +879,7 @@ public class WomanProcessManager : MonoBehaviour
         {
             WarForOilEvent evt = pool[i];
             if (evt == null) continue;
+            if (evt == exclude) continue;
 
             //yasaklanmış mı
             if (dismissedWomanEvents.Contains(evt)) continue;

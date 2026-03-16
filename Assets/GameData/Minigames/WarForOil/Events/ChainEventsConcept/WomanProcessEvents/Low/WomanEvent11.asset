@@ -20,7 +20,7 @@ MonoBehaviour:
   eventNote: 
   minWarTime: 0
   maxWarTime: -1
-  decisionTime: 10
+  decisionTime: 0
   isRepeatable: 0
   isUnlimitedRepeat: 0
   maxRepeatCount: 1
@@ -100,6 +100,10 @@ MonoBehaviour:
     obsessionFloor: 1
     redirectsWomanPool: 0
     womanPoolDatabase: {fileID: 0}
+    freezesWomanProcess: 0
+    womanProcessFreezeCycles: 1
+    hasObsessionDropLimit: 0
+    obsessionDropLimit: 0
     permanentMultipliers: []
     hasImmediateEvent: 0
     immediateEventDelay: 0
@@ -181,6 +185,10 @@ MonoBehaviour:
     obsessionFloor: 0
     redirectsWomanPool: 0
     womanPoolDatabase: {fileID: 0}
+    freezesWomanProcess: 0
+    womanProcessFreezeCycles: 1
+    hasObsessionDropLimit: 0
+    obsessionDropLimit: 0
     permanentMultipliers: []
     hasImmediateEvent: 0
     immediateEventDelay: 0

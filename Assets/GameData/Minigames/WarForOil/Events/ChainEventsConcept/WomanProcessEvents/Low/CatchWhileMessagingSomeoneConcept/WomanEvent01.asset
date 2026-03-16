@@ -97,6 +97,10 @@ MonoBehaviour:
     obsessionFloor: 0
     redirectsWomanPool: 0
     womanPoolDatabase: {fileID: 0}
+    freezesWomanProcess: 0
+    womanProcessFreezeCycles: 1
+    hasObsessionDropLimit: 0
+    obsessionDropLimit: 0
     permanentMultipliers: []
     hasImmediateEvent: 0
     immediateEventDelay: 0
@@ -176,6 +180,10 @@ MonoBehaviour:
     obsessionFloor: 0
     redirectsWomanPool: 0
     womanPoolDatabase: {fileID: 0}
+    freezesWomanProcess: 0
+    womanProcessFreezeCycles: 1
+    hasObsessionDropLimit: 0
+    obsessionDropLimit: 0
     permanentMultipliers: []
     hasImmediateEvent: 1
     immediateEventDelay: 0
@@ -257,6 +265,10 @@ MonoBehaviour:
     obsessionFloor: 0
     redirectsWomanPool: 0
     womanPoolDatabase: {fileID: 0}
+    freezesWomanProcess: 0
+    womanProcessFreezeCycles: 1
+    hasObsessionDropLimit: 0
+    obsessionDropLimit: 0
     permanentMultipliers: []
     hasImmediateEvent: 0
     immediateEventDelay: 0
@@ -282,5 +294,5 @@ MonoBehaviour:
   precursorWarEvent: {fileID: 0}
   precursorRandomEvent: {fileID: 0}
   chainRole: 1
-  blocksSubChainBranching: 0
+  blocksSubChainBranching: 1
   alsoBlockedBranchEvents: []

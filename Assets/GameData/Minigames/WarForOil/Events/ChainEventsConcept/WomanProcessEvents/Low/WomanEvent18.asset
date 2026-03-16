@@ -10,14 +10,17 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: bfbaecc4cb0677840a36451123fe4ad1, type: 3}
-  m_Name: WomanEvent09
+  m_Name: WomanEvent18
   m_EditorClassIdentifier: Assembly-CSharp::WarForOilEvent
-  id: wfo_we_low_09
-  displayName: 
-  description: "You\u2019ve changed so much; I\u2019ve lost the love I once saw in
-    the eyes of the person I first met. Your ambitions are drawing a dark curtain
-    over the light of your heart. Please, let\u2019s go back to how we were. Let's
-    be happy together."
+  id: wfo_we_low_18
+  displayName: A Dinner Invitation
+  description: 'Even though our relationship is in a bad place, I believe we can
+    get through this. Let''s go out for dinner tonight. Let''s fix our shattered
+    hopes.
+
+    The flower never grew...
+
+    But I love you just the same.'
   devNote: 
   eventNote: 
   minWarTime: 0
@@ -27,14 +30,15 @@ MonoBehaviour:
   isUnlimitedRepeat: 0
   maxRepeatCount: 1
   choices:
-  - displayName: Say you haven't changed.
-    description: 'I haven''t changed. I am still the same person i were than. '
-    supportModifier: 0
+  - displayName: Go to Dinner
+    description: Go to the dinner and skip the military meeting. The war effort might
+      falter, and you will suffer a severe loss of political power.
+    supportModifier: -5
     suspicionModifier: 0
-    reputationModifier: 0
-    hasReputationFloor: 0
-    reputationFloor: 0
-    politicalInfluenceModifier: 0
+    reputationModifier: -1
+    hasReputationFloor: 1
+    reputationFloor: 1
+    politicalInfluenceModifier: -8
     costModifier: 0
     wealthModifier: 0
     cornerGrabModifier: 0
@@ -95,7 +99,7 @@ MonoBehaviour:
     mediaPursuitLevelDelta: 0
     startsWomanProcess: 0
     endsWomanProcess: 0
-    womanObsessionModifier: -3
+    womanObsessionModifier: 4
     hasObsessionFloor: 0
     obsessionFloor: 0
     redirectsWomanPool: 0
@@ -110,16 +114,15 @@ MonoBehaviour:
     immediateEventPool: []
     requiredSkills: []
     statConditions: []
-  - displayName: Confess and Apologize
-    description: "Yes, I\u2019ve changed; you\u2019re right. If I\u2019ve hurt you,
-      it\u2019s very important that you tell me. We will get through these times
-      together. Trust me."
-    supportModifier: -2
+  - displayName: Reject the Dinner
+    description: Reject the dinner and attend the military meeting. The little trust
+      your partner has left will also be deeply wounded.
+    supportModifier: 4
     suspicionModifier: 0
-    reputationModifier: -1
-    hasReputationFloor: 1
-    reputationFloor: 15
-    politicalInfluenceModifier: -1
+    reputationModifier: 0.3
+    hasReputationFloor: 0
+    reputationFloor: 0
+    politicalInfluenceModifier: 2
     costModifier: 0
     wealthModifier: 0
     cornerGrabModifier: 0
@@ -180,7 +183,7 @@ MonoBehaviour:
     mediaPursuitLevelDelta: 0
     startsWomanProcess: 0
     endsWomanProcess: 0
-    womanObsessionModifier: 3
+    womanObsessionModifier: -6
     hasObsessionFloor: 0
     obsessionFloor: 0
     redirectsWomanPool: 0
@@ -209,9 +212,9 @@ MonoBehaviour:
   maxObsession: 100
   blockedWomanProcessEvents: []
   useTypewriterEffect: 1
-  hasPrecursorEvent: 0
+  hasPrecursorEvent: 1
   precursorEventType: 0
-  precursorWarEvent: {fileID: 0}
+  precursorWarEvent: {fileID: 11400000, guid: 07226f5bb53ea884c9c94e7a3b85b336, type: 2}
   precursorRandomEvent: {fileID: 0}
   chainRole: 0
   blocksSubChainBranching: 0
