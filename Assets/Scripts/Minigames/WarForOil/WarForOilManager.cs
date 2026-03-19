@@ -2301,6 +2301,7 @@ public class WarForOilManager : MonoBehaviour
             {
                 WarForOilEvent evt = eventPool[i];
                 if (isInChain && evt.chainRole == ChainRole.Head) continue; //chain aktifken Head eventler random slotta gelmesin
+                if (evt.requiresBothProcessesActive && (WomanProcessManager.Instance == null || !WomanProcessManager.Instance.IsActive())) continue;
                 if (warTimer < evt.minWarTime * database.warDuration) continue;
                 if (evt.maxWarTime >= 0f && warTimer > evt.maxWarTime * database.warDuration) continue;
                 if (dismissedEventIds.Contains(evt.id)) continue;
@@ -2322,6 +2323,7 @@ public class WarForOilManager : MonoBehaviour
             for (int i = 0; i < database.protestEvents.Count; i++)
             {
                 WarForOilEvent evt = database.protestEvents[i];
+                if (evt.requiresBothProcessesActive && (WomanProcessManager.Instance == null || !WomanProcessManager.Instance.IsActive())) continue;
                 if (warTimer < evt.minWarTime * database.warDuration) continue;
                 if (evt.maxWarTime >= 0f && warTimer > evt.maxWarTime * database.warDuration) continue;
                 if (dismissedEventIds.Contains(evt.id)) continue;

@@ -932,6 +932,9 @@ public class WomanProcessManager : MonoBehaviour
             //yasaklanmış mı
             if (dismissedWomanEvents.Contains(evt)) continue;
 
+            //ikili süreç kontrolü — hem savaş hem kadın süreci aktif olmalı
+            if (evt.requiresBothProcessesActive && !isInWar) continue;
+
             //öncü event kontrolü — war for oil öncüsü varsa ve savaşta değilsek atla
             if (evt.hasPrecursorEvent && evt.precursorEventType == PrecursorEventType.WarForOil && !isInWar)
                 continue;

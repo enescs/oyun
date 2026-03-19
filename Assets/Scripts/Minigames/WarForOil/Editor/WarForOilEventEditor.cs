@@ -37,7 +37,8 @@ public class WarForOilEventEditor : Editor
             "chainRole", "blocksSubChainBranching", "alsoBlockedBranchEvents",
             "minWarTime", "maxWarTime",
             "conditionalDescriptions",
-            "useTypewriterEffect"
+            "useTypewriterEffect",
+            "requiresBothProcessesActive"
         };
         if (serializedObject.FindProperty("useTypewriterEffect").boolValue)
             excludeList.Add("displayName");
@@ -164,6 +165,11 @@ public class WarForOilEventEditor : Editor
         }
 
         EditorGUILayout.Space();
+
+        //ikili süreç koşulu
+        EditorGUILayout.PropertyField(
+            serializedObject.FindProperty("requiresBothProcessesActive"),
+            new GUIContent("İkili Süreç Gerekli", "Sadece hem savaş hem kadın süreci aktifken tetiklenebilir."));
 
         //kadın süreci eventi
         SerializedProperty isWomanProcessEvent = serializedObject.FindProperty("isWomanProcessEvent");

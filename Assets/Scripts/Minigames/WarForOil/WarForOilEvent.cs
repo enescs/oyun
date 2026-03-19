@@ -44,6 +44,7 @@ public class WarForOilEvent : ScriptableObject
     public MediaPursuitLevel mediaPursuitLevelOnTrigger; //tetiklendiğinde atanacak medya takibi seviyesi
 
     [Header("Kadın Süreci")]
+    public bool requiresBothProcessesActive; //true ise bu event sadece hem savaş hem kadın süreci aktifken tetiklenebilir
     public bool isWomanProcessEvent; //true ise bu event kadın süreci havuzlarında kullanılır
     public float minObsession = 0f; //bu event sadece obsesyon bu değerin üstündeyken gelir (0 = sınırsız)
     public float maxObsession = 100f; //bu event sadece obsesyon bu değerin altındayken gelir (100 = sınırsız)
