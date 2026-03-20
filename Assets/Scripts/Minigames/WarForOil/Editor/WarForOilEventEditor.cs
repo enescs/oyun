@@ -897,8 +897,14 @@ public class WarForOilEventEditor : Editor
                             new GUIContent("Hedef " + cb));
                         if (GUILayout.Button("-", GUILayout.Width(20)))
                         {
+                            //object reference varsa önce null'la, sonra sil
+                            SerializedProperty targetRef = condBranches.GetArrayElementAtIndex(cb).FindPropertyRelative("targetEvent");
+                            if (targetRef != null && targetRef.objectReferenceValue != null)
+                                targetRef.objectReferenceValue = null;
                             condBranches.DeleteArrayElementAtIndex(cb);
                             cb--;
+                            EditorGUILayout.EndHorizontal();
+                            continue;
                         }
                         EditorGUILayout.EndHorizontal();
 
