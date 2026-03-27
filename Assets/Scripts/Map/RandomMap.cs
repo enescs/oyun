@@ -60,7 +60,7 @@ public class MapGenerator : MonoBehaviour
     [Header("Safety Margin")]
     [Tooltip("Fraction of half-map that the island must stay within. Prevents vertical/horizontal overflow.")]
     [Range(0.6f, 0.95f)]
-    public float islandMaxExtent = 0.85f;
+    public float islandMaxExtent = 0.75f;
 
     [Header("Colors")]
     public Color waterColor = new Color(0.1f, 0.3f, 0.8f);
@@ -197,10 +197,35 @@ public class MapGenerator : MonoBehaviour
         float safeMinY = height * (1f - islandMaxExtent) * 0.5f;
         float safeMaxY = height - safeMinY;
 
+        //sınıra yaklaşınca noise ile doğal kıyı oluştur
+        float edgeFadeZone = Mathf.Min(width, height) * 0.08f; //sınır yumuşatma bölgesi
+        float noiseOffset = Random.Range(0f, 9999f);
+
         for (int x = 0; x < width; x++)
             for (int y = 0; y < height; y++)
-                if (landMap[x, y] && (x < safeMinX || x > safeMaxX || y < safeMinY || y > safeMaxY))
+            {
+                if (!landMap[x, y]) continue;
+
+                //sınıra olan mesafe (her kenardan)
+                float distToEdge = Mathf.Min(
+                    x - safeMinX, safeMaxX - x,
+                    y - safeMinY, safeMaxY - y
+                );
+
+                if (distToEdge < -edgeFadeZone)
+                {
+                    //tamamen dışarıda
                     landMap[x, y] = false;
+                }
+                else if (distToEdge < edgeFadeZone)
+                {
+                    //geçiş bölgesi — noise ile doğal kenar
+                    float t = (distToEdge + edgeFadeZone) / (edgeFadeZone * 2f); //0-1
+                    float noise = Mathf.PerlinNoise((x + noiseOffset) / 15f, (y + noiseOffset) / 15f);
+                    if (noise > t)
+                        landMap[x, y] = false;
+                }
+            }
     }
 
     // -------------------------------------------------------------------------
