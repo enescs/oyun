@@ -42,6 +42,7 @@ public class WarForOilManager : MonoBehaviour
     private bool ceasefireBlocked; //bir choice ateşkesi engelledi mi
     private bool pendingDeal; //anlaşmayla bitirme aktif mi
     private float dealRewardRatio; //anlaşma ödül oranı
+    private bool pendingForceWin; //direkt kazanım aktif mi
 
     //zincir sistemi
     private bool isInChain; //şu an bir event zincirinde miyiz
@@ -552,8 +553,8 @@ public class WarForOilManager : MonoBehaviour
             return;
         }
 
-        //event engelleme (blocksEvents, endsWar veya anlaşma seçildiyse artık event gelmez)
-        if (choice.blocksEvents || choice.endsWar || choice.endsWarWithDeal)
+        //event engelleme (blocksEvents, endsWar, winsWar veya anlaşma seçildiyse artık event gelmez)
+        if (choice.blocksEvents || choice.endsWar || choice.winsWar || choice.endsWarWithDeal)
             eventsBlocked = true;
 
         //geçici event engeli — belirli dönem boyunca savaş eventi gelmez
@@ -577,6 +578,14 @@ public class WarForOilManager : MonoBehaviour
         {
             float targetTimer = database.warDuration - choice.warEndDelay;
             warTimer = Mathf.Max(warTimer, targetTimer); //süreyi geri almaz, sadece ileri sarar
+        }
+
+        //direkt kazanım — savaşı garanti zaferle bitirir
+        if (choice.winsWar)
+        {
+            float targetTimer = database.warDuration - choice.winWarDelay;
+            warTimer = Mathf.Max(warTimer, targetTimer);
+            pendingForceWin = true;
         }
 
         //anlaşmayla bitirme — süreyi ilerlet ve garanti ödül işaretle
@@ -2183,6 +2192,7 @@ public class WarForOilManager : MonoBehaviour
         remainingGlobalBlockCycles = 0;
         ceasefireBlocked = false;
         pendingDeal = false;
+        pendingForceWin = false;
         dealRewardRatio = 0f;
         eventTriggerCounts.Clear();
         currentEvent = null;
@@ -2500,8 +2510,26 @@ public class WarForOilManager : MonoBehaviour
     {
         float effectiveBaseReward = GetEffectiveBaseReward(selectedCountry);
 
+        //direkt kazanım aktifse — zar yok, tam zafer
+        if (pendingForceWin)
+        {
+            float supportRatio = supportStat / 100f;
+            float reward = effectiveBaseReward * rewardMultiplier * Mathf.Max(database.supportRewardRatio * supportRatio, 0.5f);
+
+            pendingResult = new WarForOilResult();
+            pendingResult.country = selectedCountry;
+            pendingResult.warWon = true;
+            pendingResult.finalSupportStat = supportStat;
+            pendingResult.finalVandalismLevel = currentVandalismLevel;
+            pendingResult.finalMediaPursuitLevel = currentMediaPursuitLevel;
+            pendingResult.winChance = 1f;
+            pendingResult.wealthChange = reward - accumulatedCostModifier;
+            pendingResult.suspicionChange = accumulatedSuspicionModifier;
+            pendingResult.reputationChange = accumulatedReputationModifier;
+            pendingResult.politicalInfluenceChange = accumulatedPoliticalInfluenceModifier;
+        }
         //anlaşmayla bitirme aktifse — zar yok, garanti ödül
-        if (pendingDeal)
+        else if (pendingDeal)
         {
             float dealReward = effectiveBaseReward * rewardMultiplier * dealRewardRatio;
 

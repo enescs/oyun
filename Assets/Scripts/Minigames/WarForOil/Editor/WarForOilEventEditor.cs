@@ -286,7 +286,9 @@ public class WarForOilEventEditor : Editor
         EditorGUI.indentLevel++;
 
         //temel alanlar
-        EditorGUILayout.PropertyField(choice.FindPropertyRelative("displayName"));
+        SerializedProperty dispName = choice.FindPropertyRelative("displayName");
+        EditorGUILayout.LabelField("Display Name");
+        dispName.stringValue = EditorGUILayout.TextArea(dispName.stringValue, GUILayout.MinHeight(EditorGUIUtility.singleLineHeight * 2));
         EditorGUILayout.PropertyField(choice.FindPropertyRelative("description"));
 
         EditorGUILayout.Space(2);
@@ -484,6 +486,18 @@ public class WarForOilEventEditor : Editor
                 EditorGUI.indentLevel--;
             }
 
+            SerializedProperty winsWar = choice.FindPropertyRelative("winsWar");
+            EditorGUILayout.PropertyField(winsWar, new GUIContent("Savaşı Kazan",
+                "Savaşı direkt kazandırır. Zar atılmaz, garanti zafer."));
+            if (winsWar.boolValue)
+            {
+                EditorGUI.indentLevel++;
+                EditorGUILayout.PropertyField(
+                    choice.FindPropertyRelative("winWarDelay"),
+                    new GUIContent("Gecikme (sn)"));
+                EditorGUI.indentLevel--;
+            }
+
             //ödül düşür — alt foldout
             if (!rewardFoldouts.ContainsKey(index))
                 rewardFoldouts[index] = false;
@@ -650,7 +664,7 @@ public class WarForOilEventEditor : Editor
                 EditorGUI.indentLevel++;
                 EditorGUILayout.Slider(
                     choice.FindPropertyRelative("immediateEventDelay"),
-                    0f, 10f, new GUIContent("Gecikme (sn)"));
+                    0f, 15f, new GUIContent("Gecikme (sn)"));
 
                 SerializedProperty isTiered = choice.FindPropertyRelative("immediateEventIsTiered");
                 EditorGUILayout.PropertyField(isTiered, new GUIContent("Kadın Obsesyon Tier'ına Göre"));
@@ -829,7 +843,7 @@ public class WarForOilEventEditor : Editor
                     {
                         EditorGUILayout.Slider(
                             branch.FindPropertyRelative("immediateEventDelay"),
-                            0f, 10f, new GUIContent("Gecikme (sn)"));
+                            0f, 15f, new GUIContent("Gecikme (sn)"));
                     }
                     EditorGUI.indentLevel--;
                     EditorGUILayout.Space(2);
@@ -942,7 +956,7 @@ public class WarForOilEventEditor : Editor
                             {
                                 EditorGUILayout.Slider(
                                     condBranch.FindPropertyRelative("immediateEventDelay"),
-                                    0f, 10f, new GUIContent("Gecikme (sn)"));
+                                    0f, 15f, new GUIContent("Gecikme (sn)"));
                             }
                             EditorGUI.indentLevel--;
                             EditorGUILayout.Space(2);
@@ -1368,6 +1382,8 @@ public class WarForOilEventEditor : Editor
         choice.FindPropertyRelative("protestIncreaseAmount").floatValue = 0f;
         choice.FindPropertyRelative("endsWar").boolValue = false;
         choice.FindPropertyRelative("warEndDelay").floatValue = 0f;
+        choice.FindPropertyRelative("winsWar").boolValue = false;
+        choice.FindPropertyRelative("winWarDelay").floatValue = 0f;
         choice.FindPropertyRelative("reducesReward").boolValue = false;
         choice.FindPropertyRelative("baseRewardReduction").floatValue = 0f;
         choice.FindPropertyRelative("endsWarWithDeal").boolValue = false;
