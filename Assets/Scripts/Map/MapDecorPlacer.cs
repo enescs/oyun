@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -126,6 +127,7 @@ public class MapDecorPlacer : MonoBehaviour
         public float          segmentT;     // 0–1 interpolation within current segment
         public float          waitTimer;
         public int            portIndex;
+        public float          proximitySlowdown = 1f;
         public float          speed;
         public float          currentAngle; // current facing angle (degrees), smoothly lerped
     }
@@ -152,6 +154,16 @@ public class MapDecorPlacer : MonoBehaviour
     private int[,]  navLandDist;   // per-cell minimum land distance (for cost biasing)
     private int     navW, navH;    // dimensions of the nav grid
 
+    // Asenkron A* pathfinding — ana thread'i bloklamadan yol hesaplama
+    private bool     dayNightLookedUp;   // Repaint sonrası bir kez arandı mı
+    private Coroutine spawnCoroutine;     // aktif spawn coroutine'i (aynı anda tek)
+    private Coroutine departCoroutine;    // aktif ayrılış coroutine'i
+    private bool      isSpawnPathPending; // spawn için yol hesaplanıyor mu
+    private bool      isDepartPathPending; // ayrılış için yol hesaplanıyor mu
+
+    // A* hesaplama sırasında frame başına işlenecek maksimum iterasyon
+    private const int ASTAR_ITERATIONS_PER_FRAME = 200;
+
     // -------------------------------------------------------------------------
     // ENTRY POINT
     // -------------------------------------------------------------------------
@@ -161,8 +173,9 @@ public class MapDecorPlacer : MonoBehaviour
         Clear();
         if (settings == null) { Debug.LogError("MapDecorPlacer: settings is null!"); return; }
 
-        dayNight  = DayNightCycle.Instance;
-        cachedMap = map;
+        dayNight         = DayNightCycle.Instance;
+        dayNightLookedUp = (dayNight != null);
+        cachedMap        = map;
 
         int scaledCellSize = Mathf.Max(cellSize, Mathf.RoundToInt(cellSize * (map.width / 256f)));
         int cellArea       = scaledCellSize * scaledCellSize;
@@ -247,7 +260,12 @@ public class MapDecorPlacer : MonoBehaviour
 
     void Update()
     {
-        if (dayNight == null) dayNight = DayNightCycle.Instance;
+        // DayNightCycle referansını sadece bir kez ara — her frame'de Instance lookup yapma
+        if (!dayNightLookedUp)
+        {
+            dayNight = DayNightCycle.Instance;
+            if (dayNight != null) dayNightLookedUp = true;
+        }
 
         float ratio = (dayNight != null) ? dayNight.LightingRatio : 0f;
 
@@ -265,8 +283,14 @@ public class MapDecorPlacer : MonoBehaviour
         UpdateShips(ratio);
     }
 
+    // Tekrar tekrar oluşturmamak için crossfade'de kullanılan geçici Color yapıları
+    private Color crossfadeTemp;
+
     void ApplyCrossfade(float ratio)
     {
+        float dayAlphaMultiplier   = 1f - ratio;
+        float nightAlphaMultiplier = ratio;
+
         // Buildings
         for (int i = 0; i < cityBuildings.Count; i++)
         {
@@ -275,15 +299,15 @@ public class MapDecorPlacer : MonoBehaviour
 
             float baseA = bd.baseAlpha;
 
-            Color dc      = bd.dayRenderer.color;
-            dc.a          = baseA * (1f - ratio);
-            bd.dayRenderer.color = dc;
+            crossfadeTemp   = bd.dayRenderer.color;
+            crossfadeTemp.a = baseA * dayAlphaMultiplier;
+            bd.dayRenderer.color = crossfadeTemp;
 
             if (bd.nightRenderer != null)
             {
-                Color nc = bd.nightRenderer.color;
-                nc.a     = baseA * ratio;
-                bd.nightRenderer.color = nc;
+                crossfadeTemp   = bd.nightRenderer.color;
+                crossfadeTemp.a = baseA * nightAlphaMultiplier;
+                bd.nightRenderer.color = crossfadeTemp;
             }
         }
 
@@ -294,15 +318,16 @@ public class MapDecorPlacer : MonoBehaviour
             if (pd.dayRenderer == null) continue;
 
             float baseA = pd.baseAlpha;
-            Color dc = pd.dayRenderer.color;
-            dc.a = baseA * (1f - ratio);
-            pd.dayRenderer.color = dc;
+
+            crossfadeTemp   = pd.dayRenderer.color;
+            crossfadeTemp.a = baseA * dayAlphaMultiplier;
+            pd.dayRenderer.color = crossfadeTemp;
 
             if (pd.nightRenderer != null)
             {
-                Color nc = pd.nightRenderer.color;
-                nc.a = baseA * ratio;
-                pd.nightRenderer.color = nc;
+                crossfadeTemp   = pd.nightRenderer.color;
+                crossfadeTemp.a = baseA * nightAlphaMultiplier;
+                pd.nightRenderer.color = crossfadeTemp;
             }
         }
 
@@ -313,15 +338,16 @@ public class MapDecorPlacer : MonoBehaviour
             if (ship.dayRenderer == null) continue;
 
             float baseA = ship.baseAlpha;
-            Color dc = ship.dayRenderer.color;
-            dc.a = baseA * (1f - ratio);
-            ship.dayRenderer.color = dc;
+
+            crossfadeTemp   = ship.dayRenderer.color;
+            crossfadeTemp.a = baseA * dayAlphaMultiplier;
+            ship.dayRenderer.color = crossfadeTemp;
 
             if (ship.nightRenderer != null)
             {
-                Color nc = ship.nightRenderer.color;
-                nc.a = baseA * ratio;
-                ship.nightRenderer.color = nc;
+                crossfadeTemp   = ship.nightRenderer.color;
+                crossfadeTemp.a = baseA * nightAlphaMultiplier;
+                ship.nightRenderer.color = crossfadeTemp;
             }
         }
     }
@@ -1051,13 +1077,16 @@ public class MapDecorPlacer : MonoBehaviour
         if (cachedMap == null || ports.Count == 0) return;
         if (shipSpritesDay == null || shipSpritesDay.Count == 0) return;
 
-        // Spawn timer
+        // Spawn timer — asenkron A* ile spawn et
         shipSpawnTimer -= Time.deltaTime;
         if (shipSpawnTimer <= 0f)
         {
             shipSpawnTimer = shipSpawnInterval;
-            if (activeShips.Count < maxActiveShips)
-                TrySpawnShip();
+            if (activeShips.Count < maxActiveShips && !isSpawnPathPending)
+            {
+                if (spawnCoroutine != null) StopCoroutine(spawnCoroutine);
+                spawnCoroutine = StartCoroutine(TrySpawnShipAsync());
+            }
         }
 
         // Update each ship
@@ -1078,36 +1107,11 @@ public class MapDecorPlacer : MonoBehaviour
 
                 case ShipState.Waiting:
                     ship.waitTimer -= Time.deltaTime;
-                    if (ship.waitTimer <= 0f)
+                    if (ship.waitTimer <= 0f && !isDepartPathPending)
                     {
-                        // Ayrılış: burnun baktığı yöne düz ilerle, sonra A* ile okyanus kenarına
-                        float bowAngle = (ship.currentAngle + 90f) * Mathf.Deg2Rad;
-                        Vector2 bowDir = new Vector2(Mathf.Cos(bowAngle), Mathf.Sin(bowAngle));
-
-                        //burnun yönünde 1 birim ilerle — açık denize çıkış noktası
-                        Vector3 forwardPoint = ship.go.transform.position + new Vector3(bowDir.x, bowDir.y, 0f) * 1f;
-                        forwardPoint = PushToWater(forwardPoint, bowDir);
-
-                        Vector3 exitPoint = GetRandomOceanEdgePoint();
-                        List<Vector3> depPath = new List<Vector3>();
-                        depPath.Add(ship.go.transform.position);
-                        depPath.Add(forwardPoint);
-
-                        List<Vector3> toExit = FindShipPath(forwardPoint, exitPoint);
-                        if (toExit != null && toExit.Count > 0)
-                            depPath.AddRange(toExit);
-
-                        if (depPath.Count > 0)
-                        {
-                            ship.path      = depPath;
-                            ship.pathIndex = 0;
-                            ship.segmentT  = 0f;
-                            ship.state     = ShipState.Departing;
-                        }
-                        else
-                        {
-                            ship.state = ShipState.Done;
-                        }
+                        // Ayrılış: asenkron A* ile yol hesapla
+                        if (departCoroutine != null) StopCoroutine(departCoroutine);
+                        departCoroutine = StartCoroutine(DepartShipAsync(ship));
                     }
                     break;
 
@@ -1138,6 +1142,25 @@ public class MapDecorPlacer : MonoBehaviour
         float totalSegments = ship.path.Count - 1;
         float distThisFrame = ship.speed * Time.deltaTime;
 
+        //yakındaki gemilere çarpmamak için yavaşla (her 10 frame'de kontrol)
+        if (Time.frameCount % 10 == 0)
+        {
+            float minShipDist = 0.15f;
+            ship.proximitySlowdown = 1f;
+            for (int s = 0; s < activeShips.Count; s++)
+            {
+                ShipInstance other = activeShips[s];
+                if (other == ship || other.go == null) continue;
+                float d = Vector3.Distance(ship.go.transform.position, other.go.transform.position);
+                if (d < minShipDist)
+                {
+                    ship.proximitySlowdown = Mathf.Clamp01(d / minShipDist);
+                    break;
+                }
+            }
+        }
+        distThisFrame *= ship.proximitySlowdown;
+
         // Estimate segment length for t-step conversion
         while (distThisFrame > 0f && ship.pathIndex < totalSegments)
         {
@@ -1167,31 +1190,15 @@ public class MapDecorPlacer : MonoBehaviour
             return;
         }
 
-        // Catmull-Rom interpolation using 4 control points
-        int i1 = ship.pathIndex;
-        int i0 = Mathf.Max(0, i1 - 1);
-        int i2 = Mathf.Min(ship.path.Count - 1, i1 + 1);
-        int i3 = Mathf.Min(ship.path.Count - 1, i1 + 2);
-
-        Vector3 pos = CatmullRom(ship.path[i0], ship.path[i1], ship.path[i2], ship.path[i3], ship.segmentT);
-
-        //Catmull-Rom overshoot karaya düşürüyorsa, düz lineer interpolasyona geri dön
-        Vector3 linearPos = Vector3.Lerp(ship.path[i1], ship.path[i2], ship.segmentT);
-        int checkTX = Mathf.RoundToInt((pos.x - transform.position.x + cachedHalfW) * pixelsPerUnit);
-        int checkTY = Mathf.RoundToInt((pos.y - transform.position.y + cachedHalfH) * pixelsPerUnit);
-        if (cachedMap != null && checkTX >= 0 && checkTX < cachedMap.width && checkTY >= 0 && checkTY < cachedMap.height
-            && cachedMap.IsLand(checkTX, checkTY))
-        {
-            pos = linearPos;
-        }
-
+        //lineer interpolasyon + yumuşak dönüş
+        Vector3 pos = Vector3.Lerp(ship.path[ship.pathIndex], ship.path[ship.pathIndex + 1], ship.segmentT);
         ship.go.transform.position = pos;
 
-        // Compute tangent for facing direction
-        Vector3 tangent = CatmullRomTangent(ship.path[i0], ship.path[i1], ship.path[i2], ship.path[i3], ship.segmentT);
-        if (tangent.sqrMagnitude > 0.0001f)
+        //hareket yönüne göre yumuşak dönüş
+        Vector3 dir = ship.path[ship.pathIndex + 1] - ship.path[ship.pathIndex];
+        if (dir.sqrMagnitude > 0.0001f)
         {
-            float targetAngle = Mathf.Atan2(tangent.y, tangent.x) * Mathf.Rad2Deg - 90f;
+            float targetAngle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg - 90f;
             ship.currentAngle = Mathf.MoveTowardsAngle(ship.currentAngle, targetAngle, shipTurnSpeed * Time.deltaTime);
             ship.go.transform.rotation = Quaternion.Euler(0f, 0f, ship.currentAngle);
         }
@@ -1227,50 +1234,62 @@ public class MapDecorPlacer : MonoBehaviour
         ship.go.transform.rotation = Quaternion.Euler(0f, 0f, ship.currentAngle);
     }
 
-    void TrySpawnShip()
+    /// <summary>
+    /// Asenkron gemi spawn — A* hesaplamasını birden fazla frame'e yayar.
+    /// </summary>
+    IEnumerator TrySpawnShipAsync()
     {
-        if (ports.Count == 0) return;
+        isSpawnPathPending = true;
 
-        int portIdx   = Random.Range(0, ports.Count);
+        if (ports.Count == 0) { isSpawnPathPending = false; yield break; }
+
+        //aynı limana giden veya bekleyen başka gemi yoksa spawn et
+        int portIdx = Random.Range(0, ports.Count);
+
+        //bu limanda zaten gemi var mı kontrol et
+        bool portOccupied = false;
+        for (int s = 0; s < activeShips.Count; s++)
+        {
+            if (activeShips[s].portIndex == portIdx &&
+                (activeShips[s].state == ShipState.Arriving || activeShips[s].state == ShipState.Waiting))
+            {
+                portOccupied = true;
+                break;
+            }
+        }
+
+        //meşgulse diğer limanı dene
+        if (portOccupied)
+        {
+            portIdx = (portIdx + 1) % ports.Count;
+            for (int s = 0; s < activeShips.Count; s++)
+            {
+                if (activeShips[s].portIndex == portIdx &&
+                    (activeShips[s].state == ShipState.Arriving || activeShips[s].state == ShipState.Waiting))
+                { isSpawnPathPending = false; yield break; } //iki liman da meşgul
+            }
+        }
+
         PortData port = ports[portIdx];
 
         Vector3 origin = GetRandomOceanEdgePoint();
 
-        //dock ve yaklaşma noktalarını yer şekillerine göre hesapla
-        Vector3 dockPoint, approachPoint;
-        List<Vector3> path;
+        //dock noktası — limanın deniz tarafında güvenli mesafede
+        Vector3 dockPoint = GetSafeDockPoint(port);
 
-        if (FindBestApproach(port, out dockPoint, out approachPoint))
-        {
-            //A* ile okyanus kenarından yaklaşma noktasına
-            path = FindShipPath(origin, approachPoint);
-            if (path != null && path.Count > 0)
-            {
-                //yaklaşma → dock (kıyıya paralel kısa segment)
-                path.Add(dockPoint);
-            }
-            else
-            {
-                //yaklaşma noktasına yol bulunamadı — direkt dock'a
-                path = FindShipPath(origin, dockPoint);
-                if (path == null || path.Count == 0) return;
-            }
-        }
-        else
-        {
-            //hiçbir yaklaşma bulunamadı — direkt dock'a
-            dockPoint = GetSafeDockPoint(port);
-            path = FindShipPath(origin, dockPoint);
-            if (path == null || path.Count == 0) return;
-        }
+        //A* ile dock noktasına git — asenkron hesaplama
+        List<Vector3> path = null;
+        yield return StartCoroutine(FindShipPathAsync(origin, dockPoint, (result) => { path = result; }));
 
-        //segment doğrulama — karadan geçen segmentleri düzelt
-        path = ValidateSegments(path);
+        if (path == null || path.Count == 0) { isSpawnPathPending = false; yield break; }
+
+        // Coroutine sırasında max ship sayısı aşılmış olabilir
+        if (activeShips.Count >= maxActiveShips) { isSpawnPathPending = false; yield break; }
 
         // Create ship GO
         int spriteIdx = Random.Range(0, shipSpritesDay.Count);
         Sprite daySprite = shipSpritesDay[spriteIdx];
-        if (daySprite == null) return;
+        if (daySprite == null) { isSpawnPathPending = false; yield break; }
 
         float scale = Random.Range(shipScaleRange.x, shipScaleRange.y);
         float baseA = Random.Range(0.85f, 1f);
@@ -1337,6 +1356,53 @@ public class MapDecorPlacer : MonoBehaviour
             speed         = shipSpeed * Random.Range(0.8f, 1.2f),
             currentAngle  = initAngle
         });
+
+        isSpawnPathPending = false;
+    }
+
+    /// <summary>
+    /// Asenkron gemi ayrılışı — A* hesaplamasını birden fazla frame'e yayar.
+    /// </summary>
+    IEnumerator DepartShipAsync(ShipInstance ship)
+    {
+        isDepartPathPending = true;
+
+        PortData depPort = ports[ship.portIndex];
+        Vector2 seaDir = depPort.seaDirection;
+
+        //deniz yönünde güvenli bir noktaya çık
+        Vector3 seaPoint = ship.go.transform.position + new Vector3(seaDir.x, seaDir.y, 0f) * 0.5f;
+        seaPoint = PushToWater(seaPoint, seaDir);
+
+        Vector3 exitPoint = GetRandomOceanEdgePoint();
+
+        //A* ile deniz noktasından okyanus kenarına — asenkron
+        List<Vector3> toExit = null;
+        yield return StartCoroutine(FindShipPathAsync(seaPoint, exitPoint, (result) => { toExit = result; }));
+
+        // Gemi beklerken yok edilmiş olabilir
+        if (ship.go == null || ship.state != ShipState.Waiting) { isDepartPathPending = false; yield break; }
+
+        List<Vector3> depPath = new List<Vector3>();
+        depPath.Add(ship.go.transform.position);
+        depPath.Add(seaPoint);
+
+        if (toExit != null && toExit.Count > 0)
+            depPath.AddRange(toExit);
+
+        if (depPath.Count > 0)
+        {
+            ship.path      = depPath;
+            ship.pathIndex = 0;
+            ship.segmentT  = 0f;
+            ship.state     = ShipState.Departing;
+        }
+        else
+        {
+            ship.state = ShipState.Done;
+        }
+
+        isDepartPathPending = false;
     }
 
     /// <summary>
@@ -1609,13 +1675,163 @@ public class MapDecorPlacer : MonoBehaviour
         // 1. Simplify: remove collinear points
         worldPath = SimplifyPath(worldPath);
 
-        // 2. Chaikin corner-cutting subdivision: rounds off sharp corners
-        //    Each pass replaces every segment AB with two points at 25% and 75%,
-        //    progressively smoothing the curve while preserving start/end.
-        for (int pass = 0; pass < shipPathSmoothingPasses; pass++)
-            worldPath = ChaikinSmooth(worldPath);
+        // Chaikin smoothing devre dışı — karadan geçen rotalar yaratıyordu.
+        // CatmullRom spline hareket sırasında yeterli yumuşaklık sağlıyor.
 
         return worldPath;
+    }
+
+    /// <summary>
+    /// FindShipPath'in asenkron versiyonu — A* hesaplamasını frame'lere yayar.
+    /// Sonucu callback ile döner.
+    /// </summary>
+    IEnumerator FindShipPathAsync(Vector3 from, Vector3 to, System.Action<List<Vector3>> callback)
+    {
+        if (cachedMap == null || navGrid == null) { callback(null); yield break; }
+
+        int step = Mathf.Max(1, shipPathGridStep);
+
+        // Convert world → tile → nav grid coords
+        Vector2Int fromTile = WorldToTile(from);
+        Vector2Int toTile   = WorldToTile(to);
+
+        int fromGx = Mathf.Clamp(fromTile.x / step, 0, navW - 1);
+        int fromGy = Mathf.Clamp(fromTile.y / step, 0, navH - 1);
+        int toGx   = Mathf.Clamp(toTile.x / step, 0, navW - 1);
+        int toGy   = Mathf.Clamp(toTile.y / step, 0, navH - 1);
+
+        // Snap start/end to nearest navigable cell if they're on land
+        fromGx = FindNearestNavigable(fromGx, fromGy, out fromGy);
+        int tempToGy = toGy;
+        toGx   = FindNearestNavigable(toGx, tempToGy, out toGy);
+
+        if (fromGx < 0 || toGx < 0) { callback(null); yield break; }
+
+        // A* search — asenkron
+        List<Vector2Int> gridPath = null;
+        yield return StartCoroutine(AStarSearchAsync(fromGx, fromGy, toGx, toGy, (result) => { gridPath = result; }));
+
+        if (gridPath == null || gridPath.Count == 0) { callback(null); yield break; }
+
+        // Convert grid path → world positions
+        List<Vector3> worldPath = new List<Vector3>();
+        worldPath.Add(from);
+
+        for (int i = 0; i < gridPath.Count; i++)
+        {
+            int tileX = gridPath[i].x * step + step / 2;
+            int tileY = gridPath[i].y * step + step / 2;
+            tileX = Mathf.Clamp(tileX, 0, cachedMap.width - 1);
+            tileY = Mathf.Clamp(tileY, 0, cachedMap.height - 1);
+
+            float wx = transform.position.x + (tileX / pixelsPerUnit) - cachedHalfW;
+            float wy = transform.position.y + (tileY / pixelsPerUnit) - cachedHalfH;
+            worldPath.Add(new Vector3(wx, wy, spriteZ));
+        }
+
+        worldPath.Add(to);
+
+        // Simplify: remove collinear points
+        worldPath = SimplifyPath(worldPath);
+
+        callback(worldPath);
+    }
+
+    /// <summary>
+    /// A* aramasının asenkron versiyonu — frame başına ASTAR_ITERATIONS_PER_FRAME iterasyon işler.
+    /// </summary>
+    IEnumerator AStarSearchAsync(int sx, int sy, int ex, int ey, System.Action<List<Vector2Int>> callback)
+    {
+        // Directions: 8-connected for smoother paths
+        int[] dx8 = { 1, -1, 0, 0, 1, 1, -1, -1 };
+        int[] dy8 = { 0, 0, 1, -1, 1, -1, 1, -1 };
+        float[] cost8 = { 1f, 1f, 1f, 1f, 1.414f, 1.414f, 1.414f, 1.414f };
+
+        int maxIterations = navW * navH; // safety cap
+        float[,] gScore = new float[navW, navH];
+        int[,] cameFromX = new int[navW, navH];
+        int[,] cameFromY = new int[navW, navH];
+        bool[,] closed   = new bool[navW, navH];
+
+        for (int x = 0; x < navW; x++)
+        for (int y = 0; y < navH; y++)
+        {
+            gScore[x, y] = float.MaxValue;
+            cameFromX[x, y] = -1;
+            cameFromY[x, y] = -1;
+        }
+
+        gScore[sx, sy] = 0f;
+
+        var open = new SortedList<float, Vector2Int>(new DuplicateKeyComparer());
+        float h0 = Heuristic(sx, sy, ex, ey);
+        open.Add(h0, new Vector2Int(sx, sy));
+
+        int iterations = 0;
+        int frameIterations = 0;
+
+        while (open.Count > 0 && iterations < maxIterations)
+        {
+            iterations++;
+            frameIterations++;
+
+            // Frame başına iterasyon limitine ulaşınca sonraki frame'e geç
+            if (frameIterations >= ASTAR_ITERATIONS_PER_FRAME)
+            {
+                frameIterations = 0;
+                yield return null;
+            }
+
+            var current = open.Values[0];
+            open.RemoveAt(0);
+
+            int cx = current.x, cy = current.y;
+            if (cx == ex && cy == ey)
+            {
+                callback(ReconstructPath(cameFromX, cameFromY, sx, sy, ex, ey));
+                yield break;
+            }
+
+            if (closed[cx, cy]) continue;
+            closed[cx, cy] = true;
+
+            for (int i = 0; i < 8; i++)
+            {
+                int nx = cx + dx8[i], ny = cy + dy8[i];
+                if (nx < 0 || nx >= navW || ny < 0 || ny >= navH) continue;
+                if (!navGrid[nx, ny] || closed[nx, ny]) continue;
+
+                // For diagonals, ensure both adjacent axis-aligned cells are navigable
+                if (i >= 4)
+                {
+                    if (!navGrid[cx + dx8[i], cy] || !navGrid[cx, cy + dy8[i]])
+                        continue;
+                }
+
+                float tentG = gScore[cx, cy] + cost8[i];
+
+                // Shore avoidance: cells closer to land are penalized
+                if (shipShoreAvoidanceWeight > 0f && navLandDist != null)
+                {
+                    int ld = navLandDist[nx, ny];
+                    if (ld < shipLandClearance * 3)
+                    {
+                        float proximity = 1f - ((float)ld / (shipLandClearance * 3));
+                        tentG += proximity * proximity * shipShoreAvoidanceWeight * cost8[i];
+                    }
+                }
+
+                if (tentG >= gScore[nx, ny]) continue;
+
+                gScore[nx, ny]    = tentG;
+                cameFromX[nx, ny] = cx;
+                cameFromY[nx, ny] = cy;
+                float f = tentG + Heuristic(nx, ny, ex, ey);
+                open.Add(f, new Vector2Int(nx, ny));
+            }
+        }
+
+        callback(null); // no path found
     }
 
     Vector2Int WorldToTile(Vector3 worldPos)
@@ -1872,7 +2088,7 @@ public class MapDecorPlacer : MonoBehaviour
         if (cachedMap == null) return false;
 
         float dist = Vector3.Distance(a, b);
-        int steps = Mathf.Max(5, Mathf.CeilToInt(dist / 0.02f)); //her 0.02 birimde bir kontrol
+        int steps = Mathf.Max(3, Mathf.CeilToInt(dist / 0.1f)); //her 0.1 birimde bir kontrol
 
         for (int s = 1; s < steps; s++)
         {
@@ -1953,6 +2169,12 @@ public class MapDecorPlacer : MonoBehaviour
 
     public void Clear()
     {
+        // Aktif coroutine'leri durdur
+        if (spawnCoroutine != null)  { StopCoroutine(spawnCoroutine); spawnCoroutine = null; }
+        if (departCoroutine != null) { StopCoroutine(departCoroutine); departCoroutine = null; }
+        isSpawnPathPending  = false;
+        isDepartPathPending = false;
+
         // Destroy all active ships
         foreach (var ship in activeShips)
             if (ship.go != null) Destroy(ship.go);
@@ -1965,6 +2187,7 @@ public class MapDecorPlacer : MonoBehaviour
         cityBuildings.Clear();
         ports.Clear();
         prevRatio = -1f;
+        dayNightLookedUp = false;
         cachedMap = null;
         navGrid   = null;
         navLandDist = null;
