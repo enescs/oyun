@@ -1080,36 +1080,22 @@ public class MapDecorPlacer : MonoBehaviour
                     ship.waitTimer -= Time.deltaTime;
                     if (ship.waitTimer <= 0f)
                     {
-                        // Ayrılış: mevcut konumdan A* ile okyanus kenarına
-                        PortData depPort = ports[ship.portIndex];
+                        // Ayrılış: burnun baktığı yöne düz ilerle, sonra A* ile okyanus kenarına
+                        float bowAngle = (ship.currentAngle + 90f) * Mathf.Deg2Rad;
+                        Vector2 bowDir = new Vector2(Mathf.Cos(bowAngle), Mathf.Sin(bowAngle));
 
-                        //kıyıya paralel çıkış noktası
-                        Vector2 depShore = depPort.shoreDirection;
-                        if (Random.value > 0.5f) depShore = -depShore;
-                        Vector3 departPoint = ship.go.transform.position + new Vector3(depShore.x, depShore.y, 0f) * 0.6f;
-                        departPoint = PushToWater(departPoint, depPort.seaDirection);
+                        //burnun yönünde 1 birim ilerle — açık denize çıkış noktası
+                        Vector3 forwardPoint = ship.go.transform.position + new Vector3(bowDir.x, bowDir.y, 0f) * 1f;
+                        forwardPoint = PushToWater(forwardPoint, bowDir);
 
                         Vector3 exitPoint = GetRandomOceanEdgePoint();
-
-                        //A* ile güvenli yol: önce paralel çıkış noktasına, sonra okyanus kenarına
                         List<Vector3> depPath = new List<Vector3>();
                         depPath.Add(ship.go.transform.position);
+                        depPath.Add(forwardPoint);
 
-                        List<Vector3> toDepart = FindShipPath(ship.go.transform.position, departPoint);
-                        if (toDepart != null && toDepart.Count > 0)
-                        {
-                            depPath.AddRange(toDepart);
-                            List<Vector3> toExit = FindShipPath(departPoint, exitPoint);
-                            if (toExit != null && toExit.Count > 0)
-                                depPath.AddRange(toExit);
-                        }
-                        else
-                        {
-                            //paralel çıkış başarısızsa direkt okyanus kenarına
-                            List<Vector3> directExit = FindShipPath(ship.go.transform.position, exitPoint);
-                            if (directExit != null && directExit.Count > 0)
-                                depPath.AddRange(directExit);
-                        }
+                        List<Vector3> toExit = FindShipPath(forwardPoint, exitPoint);
+                        if (toExit != null && toExit.Count > 0)
+                            depPath.AddRange(toExit);
 
                         if (depPath.Count > 0)
                         {
@@ -1250,28 +1236,36 @@ public class MapDecorPlacer : MonoBehaviour
 
         Vector3 origin = GetRandomOceanEdgePoint();
 
-        //dock noktası — limanın deniz tarafında, güvenli mesafede
-        Vector3 dockPoint = GetSafeDockPoint(port);
+        //dock ve yaklaşma noktalarını yer şekillerine göre hesapla
+        Vector3 dockPoint, approachPoint;
+        List<Vector3> path;
 
-        //kıyıya paralel yaklaşma için hizalama noktası
-        Vector2 shore = port.shoreDirection;
-        if (Random.value > 0.5f) shore = -shore;
-        Vector3 alignPoint = dockPoint + new Vector3(shore.x, shore.y, 0f) * 0.6f;
-        alignPoint = PushToWater(alignPoint, port.seaDirection);
-
-        //A* ile tüm yolu bul — okyanus kenarından hizalama noktasına
-        List<Vector3> path = FindShipPath(origin, alignPoint);
-        if (path == null || path.Count == 0)
+        if (FindBestApproach(port, out dockPoint, out approachPoint))
         {
-            //hizalama başarısızsa direkt dock'a
-            path = FindShipPath(origin, dockPoint);
-            if (path == null || path.Count == 0) return;
+            //A* ile okyanus kenarından yaklaşma noktasına
+            path = FindShipPath(origin, approachPoint);
+            if (path != null && path.Count > 0)
+            {
+                //yaklaşma → dock (kıyıya paralel kısa segment)
+                path.Add(dockPoint);
+            }
+            else
+            {
+                //yaklaşma noktasına yol bulunamadı — direkt dock'a
+                path = FindShipPath(origin, dockPoint);
+                if (path == null || path.Count == 0) return;
+            }
         }
         else
         {
-            //hizalama → dock (kısa, kıyıya paralel yanaşma)
-            path.Add(dockPoint);
+            //hiçbir yaklaşma bulunamadı — direkt dock'a
+            dockPoint = GetSafeDockPoint(port);
+            path = FindShipPath(origin, dockPoint);
+            if (path == null || path.Count == 0) return;
         }
+
+        //segment doğrulama — karadan geçen segmentleri düzelt
+        path = ValidateSegments(path);
 
         // Create ship GO
         int spriteIdx = Random.Range(0, shipSpritesDay.Count);
@@ -1383,6 +1377,78 @@ public class MapDecorPlacer : MonoBehaviour
     /// 2. Hizalama noktası — kıyıya paralel hizalanma başlangıcı
     /// 3. Yanaşma noktası — limanın hemen yanında, kıyıya paralel
     /// </summary>
+    /// <summary>
+    /// Yer şekillerine bakarak en uygun yaklaşma rotasını belirler.
+    /// Kıyının her iki yönünü de dener, açık su olan tarafı seçer.
+    /// dockPoint: geminin yanaşacağı son nokta (kıyıya paralel)
+    /// approachPoint: geminin A* ile ulaşacağı yaklaşma noktası (dock'tan kıyı boyunca uzakta)
+    /// </summary>
+    bool FindBestApproach(PortData port, out Vector3 dockPoint, out Vector3 approachPoint)
+    {
+        dockPoint = GetSafeDockPoint(port);
+        approachPoint = dockPoint;
+
+        Vector2 shore = port.shoreDirection;
+        float approachDist = 0.8f;
+
+        //her iki yönü de dene — hangisi açık su ise oradan yaklaş
+        Vector3 candidateA = dockPoint + new Vector3(shore.x, shore.y, 0f) * approachDist;
+        Vector3 candidateB = dockPoint + new Vector3(-shore.x, -shore.y, 0f) * approachDist;
+
+        bool aIsWater = IsPointInWater(candidateA) && !SegmentCrossesLand(dockPoint, candidateA);
+        bool bIsWater = IsPointInWater(candidateB) && !SegmentCrossesLand(dockPoint, candidateB);
+
+        if (aIsWater && bIsWater)
+        {
+            //ikisi de açık — rastgele seç
+            approachPoint = Random.value > 0.5f ? candidateA : candidateB;
+            return true;
+        }
+        else if (aIsWater)
+        {
+            approachPoint = candidateA;
+            return true;
+        }
+        else if (bIsWater)
+        {
+            approachPoint = candidateB;
+            return true;
+        }
+
+        //her iki yön de karaya çarpıyor — daha kısa mesafe dene
+        float shortDist = 0.4f;
+        candidateA = dockPoint + new Vector3(shore.x, shore.y, 0f) * shortDist;
+        candidateB = dockPoint + new Vector3(-shore.x, -shore.y, 0f) * shortDist;
+
+        aIsWater = IsPointInWater(candidateA) && !SegmentCrossesLand(dockPoint, candidateA);
+        bIsWater = IsPointInWater(candidateB) && !SegmentCrossesLand(dockPoint, candidateB);
+
+        if (aIsWater)
+        {
+            approachPoint = candidateA;
+            return true;
+        }
+        if (bIsWater)
+        {
+            approachPoint = candidateB;
+            return true;
+        }
+
+        return false; //hiçbir yön uygun değil
+    }
+
+    /// <summary>
+    /// Verilen world pozisyonun suda olup olmadığını kontrol eder.
+    /// </summary>
+    bool IsPointInWater(Vector3 worldPos)
+    {
+        if (cachedMap == null) return true;
+        int tileX = Mathf.RoundToInt((worldPos.x - transform.position.x + cachedHalfW) * pixelsPerUnit);
+        int tileY = Mathf.RoundToInt((worldPos.y - transform.position.y + cachedHalfH) * pixelsPerUnit);
+        if (tileX < 0 || tileX >= cachedMap.width || tileY < 0 || tileY >= cachedMap.height) return true;
+        return !cachedMap.IsLand(tileX, tileY);
+    }
+
     /// <summary>
     /// Limanın deniz tarafında, karadan güvenli mesafede bir dock noktası bulur.
     /// Deniz yönünde adım adım ilerleyip su olan en yakın noktayı döner.
@@ -1548,10 +1614,6 @@ public class MapDecorPlacer : MonoBehaviour
         //    progressively smoothing the curve while preserving start/end.
         for (int pass = 0; pass < shipPathSmoothingPasses; pass++)
             worldPath = ChaikinSmooth(worldPath);
-
-        // 3. Segment doğrulama — ardışık waypoint'ler arasındaki çizginin
-        //    karadan geçip geçmediğini kontrol et, geçiyorsa ara nokta ekle
-        worldPath = ValidateSegments(worldPath);
 
         return worldPath;
     }
@@ -1784,14 +1846,16 @@ public class MapDecorPlacer : MonoBehaviour
 
             if (SegmentCrossesLand(a, b))
             {
-                //bu segment karadan geçiyor — A* ile güvenli yol bul
-                List<Vector3> safePath = FindShipPath(a, b);
-                if (safePath != null && safePath.Count > 1)
-                {
-                    //ilk noktayı atla (zaten eklendi), son noktayı da atla (döngüde eklenecek)
-                    for (int j = 1; j < safePath.Count - 1; j++)
-                        validated.Add(safePath[j]);
-                }
+                //bu segment karadan geçiyor — orta noktayı denize iterek kır
+                Vector3 mid = Vector3.Lerp(a, b, 0.5f);
+                //karaya en uzak yönü bul — a ve b'nin ortasından denize doğru it
+                Vector3 outward = (mid - transform.position).normalized;
+                Vector2 pushDir = new Vector2(outward.x, outward.y).normalized;
+                mid = PushToWater(mid, pushDir);
+
+                //hâlâ geçiyorsa segmenti atla (ship zaten CatmullRom ile yumuşatacak)
+                if (!SegmentCrossesLand(a, mid) && !SegmentCrossesLand(mid, b))
+                    validated.Add(mid);
             }
 
             validated.Add(b);
