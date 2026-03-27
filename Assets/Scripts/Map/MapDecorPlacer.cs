@@ -231,6 +231,13 @@ public class MapDecorPlacer : MonoBehaviour
         // --- Port placement ---
         PlacePorts(map, halfW, halfH);
 
+        // --- Connect ports to road network ---
+        if (RoadGenerator.Instance != null && RoadGenerator.Instance.IsGenerated)
+        {
+            foreach (var port in ports)
+                RoadGenerator.Instance.ConnectPortToRoad(map, new Vector2Int(port.tileX, port.tileY));
+        }
+
         // --- Build navigation grid for ships ---
         BuildNavGrid(map);
 

@@ -1338,6 +1338,67 @@ public class RoadGenerator : MonoBehaviour
     public int[,] GetRoadTypeMap() => roadTypeMap;
     public bool IsGenerated => _generated;
 
+    /// <summary>
+    /// Liman tile'ına en yakın yoldan doğal kıvrımlı bir bağlantı yolu oluşturur.
+    /// MapDecorPlacer tarafından limanlar yerleştirildikten sonra çağrılır.
+    /// </summary>
+    public void ConnectPortToRoad(MapGenerator map, Vector2Int portTile)
+    {
+        if (!_generated || roadDistanceField == null) return;
+
+        //en yakın yol tile'ını bul
+        int bestDist = int.MaxValue;
+        Vector2Int bestRoadTile = portTile;
+
+        int searchRadius = 120;
+        for (int ddx = -searchRadius; ddx <= searchRadius; ddx++)
+        for (int ddy = -searchRadius; ddy <= searchRadius; ddy++)
+        {
+            int nx = portTile.x + ddx, ny = portTile.y + ddy;
+            if (nx < 0 || nx >= _w || ny < 0 || ny >= _h) continue;
+            if (roadTypeMap[nx, ny] == 0) continue;
+            int dist = ddx * ddx + ddy * ddy; //öklid kare mesafe
+            if (dist < bestDist)
+            {
+                bestDist = dist;
+                bestRoadTile = new Vector2Int(nx, ny);
+            }
+        }
+
+        if (bestDist == 0 || bestDist == int.MaxValue) return;
+
+        //BFS ile doğal yol bul (mevcut branch sistemiyle aynı)
+        List<Vector2Int> rawPath = BFSPathOnLandSimple(map, bestRoadTile, portTile);
+        if (rawPath.Count < 2) return;
+
+        //kıvrımlı yumuşatma uygula
+        List<Vector2Int> smoothed = SmoothBranchPath(map, rawPath);
+        if (smoothed.Count < 2) smoothed = rawPath;
+
+        //yolun otobana girdiği kısmı kes — en yakın yol tile'ında bitir
+        List<Vector2Int> trimmed = new List<Vector2Int>();
+        for (int i = 0; i < smoothed.Count; i++)
+        {
+            trimmed.Add(smoothed[i]);
+            //ilk tile zaten yol üzerinde (başlangıç), onu atla
+            if (i > 2 && roadTypeMap[smoothed[i].x, smoothed[i].y] != 0)
+                break; //mevcut bir yola ulaştık, burada dur
+        }
+
+        if (trimmed.Count < 2) return;
+
+        //branch olarak kaydet ve boya
+        branchPaths.Add(new List<Vector2Int>(trimmed));
+        RegisterBranchPixels(map, trimmed, 0.8f, 1f);
+
+        PaintRoadsByType(2);
+        _tex.Apply();
+
+        BuildRoadDistanceField();
+
+        Debug.Log($"RoadGenerator: Port road ({portTile.x},{portTile.y}) → ({bestRoadTile.x},{bestRoadTile.y}), {trimmed.Count}px");
+    }
+
     public void Clear()
     {
         allRoadTiles.Clear();
