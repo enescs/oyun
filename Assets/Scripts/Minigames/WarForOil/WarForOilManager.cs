@@ -43,6 +43,8 @@ public class WarForOilManager : MonoBehaviour
     private bool pendingDeal; //anlaşmayla bitirme aktif mi
     private float dealRewardRatio; //anlaşma ödül oranı
     private bool pendingForceWin; //direkt kazanım aktif mi
+    private bool forceWinCustomReward; //direkt kazanımda özel ödül oranı mı
+    private float forceWinRewardRatio; //direkt kazanım ödül oranı
 
     //zincir sistemi
     private bool isInChain; //şu an bir event zincirinde miyiz
@@ -586,6 +588,8 @@ public class WarForOilManager : MonoBehaviour
             float targetTimer = database.warDuration - choice.winWarDelay;
             warTimer = Mathf.Max(warTimer, targetTimer);
             pendingForceWin = true;
+            forceWinCustomReward = choice.winWarCustomReward;
+            forceWinRewardRatio = choice.winWarRewardRatio;
         }
 
         //anlaşmayla bitirme — süreyi ilerlet ve garanti ödül işaretle
@@ -2193,6 +2197,8 @@ public class WarForOilManager : MonoBehaviour
         ceasefireBlocked = false;
         pendingDeal = false;
         pendingForceWin = false;
+        forceWinCustomReward = false;
+        forceWinRewardRatio = 1f;
         dealRewardRatio = 0f;
         eventTriggerCounts.Clear();
         currentEvent = null;
@@ -2513,8 +2519,15 @@ public class WarForOilManager : MonoBehaviour
         //direkt kazanım aktifse — zar yok, tam zafer
         if (pendingForceWin)
         {
-            float supportRatio = supportStat / 100f;
-            float reward = effectiveBaseReward * rewardMultiplier * Mathf.Max(database.supportRewardRatio * supportRatio, 0.5f);
+            float rewardRatio;
+            if (forceWinCustomReward)
+                rewardRatio = forceWinRewardRatio;
+            else
+            {
+                float supportRatio = supportStat / 100f;
+                rewardRatio = Mathf.Max(database.supportRewardRatio * supportRatio, 0.5f);
+            }
+            float reward = effectiveBaseReward * rewardMultiplier * rewardRatio;
 
             pendingResult = new WarForOilResult();
             pendingResult.country = selectedCountry;

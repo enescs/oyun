@@ -139,6 +139,8 @@ public class WarForOilEventChoice
     [Range(0f, 1f)] public float baseRewardReduction; //base reward'ı bu oranda düşürür (0.3 = %30 düşüş)
     public bool winsWar; //savaşı direkt kazandırır (garanti zafer)
     public float winWarDelay; //kazanım kaç saniye sonra gerçekleşir (0 = anında)
+    public bool winWarCustomReward; //true ise ödül oranı direkt girilir, false ise war support tabanlı hesaplanır
+    [Range(0f, 1f)] public float winWarRewardRatio = 1f; //kazanım ödül oranı (winWarCustomReward true ise kullanılır)
     public bool endsWarWithDeal; //savaşı anlaşmayla bitirir (garanti ödül)
     public float dealDelay; //anlaşma kaç saniye sonra savaşı bitirir (0 = anında)
     [Range(0f, 1f)] public float dealRewardRatio; //normal kazanımın bu oranı garanti verilir (0.8 = %80)

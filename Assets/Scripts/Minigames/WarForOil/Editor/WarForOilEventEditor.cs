@@ -495,6 +495,21 @@ public class WarForOilEventEditor : Editor
                 EditorGUILayout.PropertyField(
                     choice.FindPropertyRelative("winWarDelay"),
                     new GUIContent("Gecikme (sn)"));
+
+                SerializedProperty customReward = choice.FindPropertyRelative("winWarCustomReward");
+                string[] rewardOptions = { "War Support Tabanlı", "Direkt Oran Gir" };
+                int rewardSel = customReward.boolValue ? 1 : 0;
+                rewardSel = EditorGUILayout.Popup("Ödül Hesaplama", rewardSel, rewardOptions);
+                customReward.boolValue = rewardSel == 1;
+
+                if (customReward.boolValue)
+                {
+                    EditorGUILayout.Slider(
+                        choice.FindPropertyRelative("winWarRewardRatio"),
+                        0f, 1f, new GUIContent("Ödül Oranı",
+                        "1 = tam ödül, 0.5 = yarı ödül"));
+                }
+
                 EditorGUI.indentLevel--;
             }
 
@@ -1384,6 +1399,8 @@ public class WarForOilEventEditor : Editor
         choice.FindPropertyRelative("warEndDelay").floatValue = 0f;
         choice.FindPropertyRelative("winsWar").boolValue = false;
         choice.FindPropertyRelative("winWarDelay").floatValue = 0f;
+        choice.FindPropertyRelative("winWarCustomReward").boolValue = false;
+        choice.FindPropertyRelative("winWarRewardRatio").floatValue = 1f;
         choice.FindPropertyRelative("reducesReward").boolValue = false;
         choice.FindPropertyRelative("baseRewardReduction").floatValue = 0f;
         choice.FindPropertyRelative("endsWarWithDeal").boolValue = false;
