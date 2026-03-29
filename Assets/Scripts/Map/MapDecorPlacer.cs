@@ -83,6 +83,7 @@ public class MapDecorPlacer : MonoBehaviour
     [Range(0f, 5f)] public float shipShoreAvoidanceWeight = 2.5f;
     [Tooltip("How fast ships turn toward their heading (degrees/sec). Lower = smoother, more graceful turns.")]
     [Range(15f, 360f)] public float shipTurnSpeed = 45f;
+
     [Tooltip("Chaikin corner-cutting passes applied to the path. More = rounder curves. 0 = raw A* path.")]
     [Range(0, 6)] public int shipPathSmoothingPasses = 3;
 
@@ -128,6 +129,7 @@ public class MapDecorPlacer : MonoBehaviour
         public float          waitTimer;
         public int            portIndex;
         public float          proximitySlowdown = 1f;
+        public float          wakeTimer;
         public float          speed;
         public float          currentAngle; // current facing angle (degrees), smoothly lerped
     }
@@ -288,6 +290,7 @@ public class MapDecorPlacer : MonoBehaviour
 
         // Ship tick
         UpdateShips(ratio);
+
     }
 
     // Tekrar tekrar oluşturmamak için crossfade'de kullanılan geçici Color yapıları
@@ -1140,7 +1143,148 @@ public class MapDecorPlacer : MonoBehaviour
                 activeShips.RemoveAt(i);
             }
         }
+
+        //köpük sprite'larını güncelle
+        UpdateFoamSprites();
     }
+
+    // =========================================================================
+    // BOW WAVE — geminin burun ucundan nokta nokta köpük
+    // =========================================================================
+
+    private class FoamDot
+    {
+        public GameObject go;
+        public SpriteRenderer sr;
+        public float lifetime;
+        public float maxLifetime;
+        public Vector3 velocity; //yana sürüklenme
+    }
+
+    private List<FoamDot> foamDots = new List<FoamDot>();
+    private Queue<GameObject> foamPool = new Queue<GameObject>();
+    private Sprite foamDotSprite;
+
+    Sprite GetFoamDotSprite()
+    {
+        if (foamDotSprite != null) return foamDotSprite;
+        int size = 6;
+        Texture2D tex = new Texture2D(size, size);
+        float c = (size - 1) * 0.5f;
+        for (int x = 0; x < size; x++)
+            for (int y = 0; y < size; y++)
+            {
+                float d = Vector2.Distance(new Vector2(x, y), new Vector2(c, c)) / c;
+                float a = Mathf.Clamp01(1f - d);
+                tex.SetPixel(x, y, new Color(1f, 1f, 1f, a * a));
+            }
+        tex.Apply();
+        tex.filterMode = FilterMode.Bilinear;
+        foamDotSprite = Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 100f);
+        return foamDotSprite;
+    }
+
+    void CreateBowWave(ShipInstance ship) { }
+
+    void UpdateFoamSprites()
+    {
+        float dt = Time.deltaTime;
+
+        //hareket eden gemilerden burun ucunda köpük dot'ları spawn
+        for (int i = 0; i < activeShips.Count; i++)
+        {
+            ShipInstance ship = activeShips[i];
+            if (ship.go == null) continue;
+            if (ship.state != ShipState.Arriving && ship.state != ShipState.Departing) continue;
+
+            ship.wakeTimer -= dt;
+            if (ship.wakeTimer > 0f) continue;
+            ship.wakeTimer = 0.015f;
+
+            float bowAngle = (ship.currentAngle + 90f) * Mathf.Deg2Rad;
+            Vector2 fwd = new Vector2(Mathf.Cos(bowAngle), Mathf.Sin(bowAngle));
+            Vector2 right = new Vector2(-fwd.y, fwd.x);
+            Vector3 shipPos = ship.go.transform.position;
+
+            //burun ucunun iki kenarından dot spawn — yana doğru sürüklenecek
+            for (int side = -1; side <= 1; side += 2)
+            {
+                Vector3 dotPos = shipPos
+                    + new Vector3(fwd.x, fwd.y, 0f) * 0.15f * ship.scale
+                    + new Vector3(right.x, right.y, 0f) * side * 0.055f * ship.scale;
+                dotPos.z = shipPos.z - 0.05f; //geminin ALTINDA değil ÜSTÜNDE
+                dotPos.x += Random.Range(-0.005f, 0.005f);
+                dotPos.y += Random.Range(-0.005f, 0.005f);
+
+                //yana doğru sürüklenme hızı
+                Vector3 sideVel = new Vector3(right.x, right.y, 0f) * side * 0.08f;
+                SpawnFoamDot(dotPos, sideVel);
+            }
+        }
+
+        //dot'ları güncelle — yana sürüklen + fade out
+        for (int i = foamDots.Count - 1; i >= 0; i--)
+        {
+            FoamDot fd = foamDots[i];
+            fd.lifetime -= dt;
+
+            if (fd.lifetime <= 0f)
+            {
+                fd.go.SetActive(false);
+                foamPool.Enqueue(fd.go);
+                foamDots.RemoveAt(i);
+                continue;
+            }
+
+            //yana sürüklen
+            fd.go.transform.position += fd.velocity * dt;
+            fd.velocity *= (1f - dt * 2f); //yavaşla
+
+            float t = 1f - (fd.lifetime / fd.maxLifetime);
+            Color col = fd.sr.color;
+            col.a = 0.7f * (1f - t);
+            fd.sr.color = col;
+        }
+    }
+
+    void SpawnFoamDot(Vector3 pos, Vector3 velocity)
+    {
+        GameObject go;
+        SpriteRenderer sr;
+
+        if (foamPool.Count > 0)
+        {
+            go = foamPool.Dequeue();
+            go.SetActive(true);
+            sr = go.GetComponent<SpriteRenderer>();
+        }
+        else
+        {
+            go = new GameObject("FoamDot");
+            go.transform.SetParent(transform);
+            sr = go.AddComponent<SpriteRenderer>();
+            sr.sprite = GetFoamDotSprite();
+            sr.sortingOrder = 7; //gemilerin altında, denizin üstünde
+        }
+
+        float s = Random.Range(0.08f, 0.13f);
+        go.transform.position = pos;
+        go.transform.localScale = new Vector3(s, s, 1f);
+        sr.color = new Color(1f, 1f, 1f, 0.7f);
+
+        foamDots.Add(new FoamDot
+        {
+            go = go,
+            sr = sr,
+            lifetime = 1.5f,
+            maxLifetime = 1.5f,
+            velocity = velocity
+        });
+    }
+
+    // =========================================================================
+    // KÖPÜK İZİ (WAKE) — geminin değdiği yerlerde oluşan sabit köpük
+    // =========================================================================
 
     void MoveAlongPath(ShipInstance ship)
     {
@@ -1363,6 +1507,9 @@ public class MapDecorPlacer : MonoBehaviour
             speed         = shipSpeed * Random.Range(0.8f, 1.2f),
             currentAngle  = initAngle
         });
+
+        //bow wave köpük izi
+        CreateBowWave(activeShips[activeShips.Count - 1]);
 
         isSpawnPathPending = false;
     }
