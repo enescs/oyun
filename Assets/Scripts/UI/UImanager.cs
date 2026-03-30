@@ -40,6 +40,7 @@ public class UImanager : MonoBehaviour
         moneyBar.SetActive(true);
         mainCamera.enable = true;
         currentui = 0;
+        GameManager.Instance.ResumeGame();
     }
 
     public void OnGameExitPress()
@@ -56,6 +57,7 @@ public class UImanager : MonoBehaviour
         moneyBar.SetActive(false);
         mainCamera.enable = false;
         currentui = 2;
+        GameManager.Instance.PauseGame();
     }
 
     public void OnSkillTreeOpen()

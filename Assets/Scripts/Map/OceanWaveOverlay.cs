@@ -34,14 +34,23 @@ public class OceanWaveOverlay : MonoBehaviour
     [Range(5, 40)] public int shoreWaveMaxDist = 20;
     [Range(0f, 1f)] public float shoreWaveIntensity = 0.55f;
     public Color shoreWaveColor = new Color(0.85f, 0.92f, 1f, 0.5f);
+    public Color shoreWaveColorNight = new Color(0.25f, 0.35f, 0.5f, 0.35f);
     [Range(0.5f, 5f)] public float shoreWaveSpeed = 1.5f;
     [Range(1f, 8f)] public float shoreWaveFrequency = 3f;
     [Range(0f, 1f)] public float shoreFoamIntensity = 0.7f;
 
+    [Header("Fog Overlay")]
+    [Tooltip("Sorting order for fog layer — ships(8) altinda kalmasi icin 9+ olmali")]
+    public int fogSortingOrder = 10;
+
     private GameObject overlayGO;
     private SpriteRenderer overlaySR;
     private Material overlayMat;
+    private GameObject fogOverlayGO;
+    private SpriteRenderer fogOverlaySR;
     private bool initialized;
+    private DayNightCycle dayNight;
+    private float gameTime;
 
     /// <summary>
     /// MapPainter tarafından harita boyanır boyanmaz çağrılır — gecikme yok.
@@ -108,8 +117,44 @@ public class OceanWaveOverlay : MonoBehaviour
         overlaySR.material = overlayMat;
         overlaySR.sortingOrder = 1;
 
+        // sis overlay — gemilerin üstünde, sis bölgesinde yarı saydam katman
+        CreateFogOverlay(w, h);
+
         initialized = true;
-        Debug.Log("OceanWaveOverlay: Aktif (kıyı dalgası dahil).");
+        Debug.Log("OceanWaveOverlay: Aktif (kıyı dalgası + sis overlay dahil).");
+    }
+
+    /// <summary>
+    /// Sis bölgelerini gemilerin üstünde çizen ayrı sprite katmanı.
+    /// fogMap verisini kullanarak sadece sisli pikselleri boyar.
+    /// </summary>
+    void CreateFogOverlay(int w, int h)
+    {
+        Color fogColor = mapGenerator.fogColor;
+        Texture2D fogTex = new Texture2D(w, h, TextureFormat.RGBA32, false);
+        fogTex.filterMode = FilterMode.Point;
+        Color[] fogPx = new Color[w * h];
+
+        for (int x = 0; x < w; x++)
+            for (int y = 0; y < h; y++)
+            {
+                float fog = mapGenerator.GetFog(x, y);
+                fogPx[x + y * w] = fog > 0f
+                    ? new Color(fogColor.r, fogColor.g, fogColor.b, fog)
+                    : new Color(0f, 0f, 0f, 0f);
+            }
+
+        fogTex.SetPixels(fogPx);
+        fogTex.Apply();
+
+        if (fogOverlayGO != null) Destroy(fogOverlayGO);
+        fogOverlayGO = new GameObject("FogOverlay");
+        fogOverlayGO.transform.SetParent(transform);
+        fogOverlayGO.transform.localPosition = new Vector3(0f, 0f, -1f);
+
+        fogOverlaySR = fogOverlayGO.AddComponent<SpriteRenderer>();
+        fogOverlaySR.sprite = Sprite.Create(fogTex, new Rect(0, 0, w, h), new Vector2(0.5f, 0.5f), 100f);
+        fogOverlaySR.sortingOrder = fogSortingOrder;
     }
 
     /// <summary>
@@ -209,11 +254,20 @@ public class OceanWaveOverlay : MonoBehaviour
     void Update()
     {
         if (!initialized || overlayMat == null) return;
+
+        if (dayNight == null)
+            dayNight = DayNightCycle.Instance;
+
+        // Time.deltaTime pause'da 0 döner — animasyon durur
+        gameTime += Time.deltaTime;
+
         UpdateMaterialProperties();
     }
 
     void UpdateMaterialProperties()
     {
+        float ratio = (dayNight != null) ? dayNight.LightingRatio : 0f;
+
         overlayMat.SetColor("_WaveColor1", waveColorLight);
         overlayMat.SetColor("_WaveColor2", waveColorDark);
         overlayMat.SetColor("_FoamColor", foamColor);
@@ -225,10 +279,12 @@ public class OceanWaveOverlay : MonoBehaviour
         overlayMat.SetVector("_FoamSpeed", foamSpeed);
         overlayMat.SetFloat("_FoamThreshold", foamThreshold);
         overlayMat.SetFloat("_Intensity", intensity);
+        overlayMat.SetFloat("_GameTime", gameTime);
 
-        // kıyı dalgası parametreleri
+        // kıyı dalgası — gece/gündüz renk geçişi
+        Color blendedShoreColor = Color.Lerp(shoreWaveColor, shoreWaveColorNight, ratio);
         overlayMat.SetFloat("_ShoreWaveIntensity", shoreWaveIntensity);
-        overlayMat.SetColor("_ShoreWaveColor", shoreWaveColor);
+        overlayMat.SetColor("_ShoreWaveColor", blendedShoreColor);
         overlayMat.SetFloat("_ShoreWaveSpeed", shoreWaveSpeed);
         overlayMat.SetFloat("_ShoreWaveFrequency", shoreWaveFrequency);
         overlayMat.SetFloat("_ShoreFoamIntensity", shoreFoamIntensity);

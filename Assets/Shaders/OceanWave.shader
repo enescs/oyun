@@ -15,6 +15,7 @@ Shader "Custom/OceanWave"
         _FoamSpeed ("Foam Speed", Vector) = (0.01, -0.015, 0, 0)
         _FoamThreshold ("Foam Threshold", Range(0.5, 0.95)) = 0.72
         _Intensity ("Overall Intensity", Range(0, 1)) = 0.25
+        _GameTime ("Game Time", Float) = 0.0
 
         // Kıyı dalgası
         _ShoreWaveIntensity ("Shore Wave Intensity", Range(0, 1)) = 0.55
@@ -65,6 +66,7 @@ Shader "Custom/OceanWave"
             float4 _FoamSpeed;
             float _FoamThreshold;
             float _Intensity;
+            float _GameTime;
 
             float _ShoreWaveIntensity;
             float4 _ShoreWaveColor;
@@ -120,7 +122,7 @@ Shader "Custom/OceanWave"
 
                 if (waterMask < 0.01) return fixed4(0, 0, 0, 0);
 
-                float t = _Time.y;
+                float t = _GameTime;
 
                 // === AÇIK DENİZ DALGALARI (mevcut sistem) ===
                 float2 waveUV1 = i.uv * _WaveScale1 + _WaveSpeed1.xy * t;
